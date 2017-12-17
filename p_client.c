@@ -1944,6 +1944,7 @@ void ClientDisconnect (edict_t *ent)
 		if(DMGame.PlayerDisconnect)
 			DMGame.PlayerDisconnect(ent);
 	}
+
 //ROGUE
 //============
 
