@@ -372,9 +372,12 @@ void T_Damage (edict_t *targ, edict_t *inflictor, edict_t *attacker, vec3_t dir,
 	int			asave;
 	int			psave;
 	int			te_sparks;
+	int			sphere_notified;	// PGM
 
 	if (!targ->takedamage)
 		return;
+
+	sphere_notified = false;		// PGM
 
 	if (!attacker)
 		return;
@@ -404,6 +407,17 @@ void T_Damage (edict_t *targ, edict_t *inflictor, edict_t *attacker, vec3_t dir,
 		if (!damage)
 			damage = 1;
 	}
+
+	// PMM - defender sphere takes half damage
+	if ((targ->client) && (targ->client->owned_sphere) && (targ->client->owned_sphere->spawnflags == 1))
+	{
+		damage = damage * 0.5;
+		if (!damage)
+			damage = 1;
+	}
+
+//	take = ApplyDefender(targ, take);
+
 
 	client = targ->client;
 
@@ -457,7 +471,8 @@ void T_Damage (edict_t *targ, edict_t *inflictor, edict_t *attacker, vec3_t dir,
 	{
 		take = 0;
 		save = damage;
-		SpawnDamage (te_sparks, point, normal, save);
+		if (mod != MOD_AM_POD_SPLASH)
+			SpawnDamage (te_sparks, point, normal, save);
 	}
 
 	// check for invincibility
@@ -506,16 +521,44 @@ void T_Damage (edict_t *targ, edict_t *inflictor, edict_t *attacker, vec3_t dir,
 // do the damage
 	if (take)
 	{
+//PGM		need more blood for chainfist.
+		if(targ->flags & FL_MECHANICAL)
+		{
+			SpawnDamage ( TE_ELECTRIC_SPARKS, point, normal, take);
+		}
+		else if ((targ->svflags & SVF_MONSTER) || (client))
+		{
+			if(mod == MOD_CHAINFIST)
+				SpawnDamage (TE_MOREBLOOD, point, normal, 255);
+			else
+				SpawnDamage (TE_BLOOD, point, normal, take);
+		}
+		else
+			if (mod != MOD_AM_POD_SPLASH)
+				SpawnDamage (te_sparks, point, normal, take);
+//PGM
+
 		if ((targ->svflags & SVF_MONSTER) || (client))
 			if (strcmp (targ->classname, "monster_gekk") == 0)
 				SpawnDamage (TE_GREENBLOOD, point, normal, take);
 			else
-				SpawnDamage (TE_BLOOD, point, normal, take);
+				if (mod != MOD_AM_POD_SPLASH)
+					SpawnDamage (TE_BLOOD, point, normal, take);
 		else
-			SpawnDamage (te_sparks, point, normal, take);
+			if (mod != MOD_AM_POD_SPLASH)
+				SpawnDamage (te_sparks, point, normal, take);
 
 
 		targ->health = targ->health - take;
+
+//PGM - spheres need to know who to shoot at
+		if(client && client->owned_sphere)
+		{
+			sphere_notified = true;
+			if(client->owned_sphere->pain)
+				client->owned_sphere->pain (client->owned_sphere, attacker, 0, 0);
+		}
+//PGM
 			
 		if (targ->health <= 0)
 		{
@@ -525,6 +568,17 @@ void T_Damage (edict_t *targ, edict_t *inflictor, edict_t *attacker, vec3_t dir,
 			return;
 		}
 	}
+//PGM - spheres need to know who to shoot at
+	if (!sphere_notified)
+	{
+		if(client && client->owned_sphere)
+		{
+			sphere_notified = true;
+			if(client->owned_sphere->pain)
+				client->owned_sphere->pain (client->owned_sphere, attacker, 0, 0);
+		}
+	}
+//PGM
 
 	if ((targ->svflags & SVF_MONSTER) && (!targ->bot_client))
 	{
@@ -573,6 +627,8 @@ void T_RadiusDamage (edict_t *inflictor, edict_t *attacker, float damage, edict_
 	edict_t	*ent = NULL;
 	vec3_t	v;
 	vec3_t	dir;
+	trace_t	tr;
+	float	dist;
 
 	while ((ent = findradius(ent, inflictor->s.origin, radius)) != NULL)
 	{
@@ -603,6 +659,36 @@ void T_RadiusDamage (edict_t *inflictor, edict_t *attacker, float damage, edict_
 			}
 		}
 	}
+	// cycle through players for antimatter rocket blast
+	if (mod == MOD_AM_ROCKET)
+	{
+		ent = g_edicts+1; // skip the worldspawn
+		while (ent)
+		{
+			if ((ent->client) && (ent->client->nuke_framenum != level.framenum+20) && (ent->inuse))
+			{
+				tr = gi.trace (inflictor->s.origin, NULL, NULL, ent->s.origin, inflictor, MASK_SOLID);
+				if (tr.fraction == 1.0)
+				{
+//					if ((g_showlogic) && (g_showlogic->value))
+//						gi.dprintf ("Undamaged player in LOS with nuke, flashing!\n");
+					ent->client->nuke_framenum = level.framenum + 15; //was 20
+				}
+				else
+				{
+					dist = realrange (ent, inflictor);
+					if (dist < 1024)
+						ent->client->nuke_framenum = max(ent->client->nuke_framenum,level.framenum + 12); //was 15
+					else if (dist <= 1536)
+						ent->client->nuke_framenum = max(ent->client->nuke_framenum,level.framenum + 10); //was 10
+				}
+				ent++;
+			}
+			else
+				ent = NULL;
+		}
+	}
+
 }
 
 

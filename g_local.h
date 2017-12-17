@@ -263,8 +263,10 @@ typedef struct
 #define IT_TECH			64
 //ZOID
 // ROGUE
-#define IT_MELEE			0x00000080
-#define IT_NOT_GIVEABLE		0x00000100	// item can not be given
+#define IT_MELEE			0x00000080 //128
+#define IT_NOT_GIVEABLE		0x00000100	// item can not be given- 256
+#define IT_ALTWEAPON	512
+
 // ROGUE
 
 // gitem_t->weapmodel for weapons indicates model index
@@ -589,6 +591,10 @@ extern	int	body_armor_index;
 #define MOD_DOPPLE_EXPLODE		57
 #define MOD_DOPPLE_VENGEANCE	58
 #define MOD_DOPPLE_HUNTER		59
+#define MOD_AM_ROCKET			60
+#define MOD_AM_POD				61
+#define MOD_AM_POD_SPLASH		62
+
 //ROGUE
 //========
 // end AJ
@@ -744,6 +750,13 @@ typedef struct
 extern	field_t fields[];
 extern	gitem_t	itemlist[];
 
+//
+// g_sphere.c
+//
+void Defender_Launch (edict_t *self);
+void Vengeance_Launch (edict_t *self);
+void Hunter_Launch (edict_t *self);
+
 
 //
 // g_cmds.c
@@ -820,17 +833,17 @@ void T_RadiusDamage (edict_t *inflictor, edict_t *attacker, float damage, edict_
 void T_RadiusNukeDamage (edict_t *inflictor, edict_t *attacker, float damage, edict_t *ignore, float radius, int mod);
 
 // damage flags
-#define DAMAGE_RADIUS			0x00000001	// damage was indirect
-#define DAMAGE_NO_ARMOR			0x00000002	// armour does not protect from this damage
-#define DAMAGE_ENERGY			0x00000004	// damage is from an energy based weapon
-#define DAMAGE_NO_KNOCKBACK		0x00000008	// do not affect velocity, just view angles
-#define DAMAGE_BULLET			0x00000010  // damage is from a bullet (used for ricochets)
-#define DAMAGE_NO_PROTECTION	0x00000020  // armor, shields, invulnerability, and godmode have no effect
+#define DAMAGE_RADIUS			0x00000001	// damage was indirect 1
+#define DAMAGE_NO_ARMOR			0x00000002	// armour does not protect from this damage 2
+#define DAMAGE_ENERGY			0x00000004	// damage is from an energy based weapon 4
+#define DAMAGE_NO_KNOCKBACK		0x00000008	// do not affect velocity, just view angles 8
+#define DAMAGE_BULLET			0x00000010  // damage is from a bullet (used for ricochets) 16
+#define DAMAGE_NO_PROTECTION	0x00000020  // armor, shields, invulnerability, and godmode have no effect 32
 
 //ROGUE
-#define DAMAGE_DESTROY_ARMOR	0x00000040	// damage is done to armor and health.
-#define DAMAGE_NO_REG_ARMOR		0x00000080	// damage skips regular armor
-#define DAMAGE_NO_POWER_ARMOR	0x00000100	// damage skips power armor
+#define DAMAGE_DESTROY_ARMOR	0x00000040	// damage is done to armor and health. 64
+#define DAMAGE_NO_REG_ARMOR		0x00000080	// damage skips regular armor 128
+#define DAMAGE_NO_POWER_ARMOR	0x00000100	// damage skips power armor 256
 //ROGUE
 
 #define DEFAULT_BULLET_HSPREAD	300
@@ -879,6 +892,7 @@ void BecomeExplosion1(edict_t *self);
 // RAFAEL
 void ThrowHeadACID (edict_t *self, char *gibname, int damage, int type);
 void ThrowGibACID (edict_t *self, char *gibname, int damage, int type);
+void Cmd_PurgeGibs_f (edict_t *ent); //ScarFace
 
 //
 // g_ai.c
@@ -912,6 +926,8 @@ void fire_blaster (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int s
 void fire_grenade (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int speed, float timer, float damage_radius);
 void fire_grenade2 (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int speed, float timer, float damage_radius, qboolean held);
 void fire_rocket (edict_t *self, vec3_t start, vec3_t dir, int damage, int speed, float damage_radius, int radius_damage);
+void fire_am_rocket (edict_t *self, vec3_t start, vec3_t dir, int damage, int speed, float damage_radius, int radius_damage);
+void fire_am_pod (edict_t *self, vec3_t start, vec3_t dir, int damage, int speed, float damage_radius, int radius_damage);
 void fire_rail (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int kick);
 void fire_bfg (edict_t *self, vec3_t start, vec3_t dir, int damage, int speed, float damage_radius);
 // RAFAEL
@@ -942,6 +958,27 @@ void fire_tesla (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int spe
 void fire_blaster2 (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int speed, int effect, qboolean hyper);
 void fire_heat_rogue (edict_t *self, vec3_t start, vec3_t aimdir, vec3_t offset, int damage, int kick, qboolean monster);
 void fire_tracker (edict_t *self, vec3_t start, vec3_t dir, int damage, int speed, edict_t *enemy);
+
+//
+// g_newdm.c
+//
+void InitGameRules(void);
+edict_t *DoRandomRespawn (edict_t *ent);
+void PrecacheForRandomRespawn (void);
+qboolean Tag_PickupToken (edict_t *ent, edict_t *other);
+void Tag_DropToken (edict_t *ent, gitem_t *item);
+void Tag_PlayerDeath(edict_t *targ, edict_t *inflictor, edict_t *attacker);
+void fire_doppleganger (edict_t *ent, vec3_t start, vec3_t aimdir);
+
+//
+// g_spawn.c
+//
+qboolean FindSpawnPoint (vec3_t startpoint, vec3_t mins, vec3_t maxs, vec3_t spawnpoint, float maxMoveUp);
+qboolean CheckSpawnPoint (vec3_t origin, vec3_t mins, vec3_t maxs);
+qboolean CheckGroundSpawnPoint (vec3_t origin, vec3_t entMins, vec3_t entMaxs, float height, float gravity);
+void DetermineBBox (char *classname, vec3_t mins, vec3_t maxs);
+void SpawnGrow_Spawn (vec3_t startpos, int size);
+
 
 //
 // p_client.c
@@ -1044,6 +1081,14 @@ void FetchClientEntData (edict_t *ent);
 //#define	BOT_FRAMETIME	0.1
 double	bot_frametime;
 
+//
+// g_chase.c
+//
+void UpdateChaseCam(edict_t *ent);
+void ChaseNext(edict_t *ent);
+void ChasePrev(edict_t *ent);
+void GetChaseTarget(edict_t *ent);
+
 int max_bots;
 float	last_bot_spawn;
 int bot_male_names_used;
@@ -1125,6 +1170,8 @@ typedef struct
 #endif
 //ROGUE
 //=========
+	qboolean		am_rockets;  //ScarFace- alternate fire modes
+	qboolean		am_bounce_pod;
 
 	int			max_armor; // ADJ
 } client_persistant_t;
@@ -1640,10 +1687,16 @@ struct edict_s
 //
 //	You may safely add fields below this point 
 
+
 // rogue (aj)
 	int			plat2flags;
 	vec3_t		offset;
-
+	vec3_t		gravityVector;
+	edict_t		*bad_area;
+	edict_t		*hint_chain;
+	edict_t		*monster_hint_chain;
+	edict_t		*target_hint_chain;
+	int			hint_chain_id;
 	edict_t		*laser;
 };
 
@@ -1657,7 +1710,7 @@ edict_t	*ammo_head;
 // the following are just faster ways of accessing FindItem("item_name"), set in Worldspawn
 gitem_t	*item_shells, *item_cells, *item_rockets, *item_grenades, *item_slugs, *item_bullets;
 gitem_t	*item_shotgun, *item_hyperblaster, *item_supershotgun, *item_grenadelauncher, *item_chaingun, *item_railgun, *item_machinegun, *item_bfg10k, *item_rocketlauncher, *item_blaster;
-gitem_t *item_proxlauncher, *item_disruptor, *item_etfrifle, *item_chainfist, *item_plasmabeam, *item_rounds, *item_flechettes;
+gitem_t *item_proxlauncher, *item_disruptor, *item_etfrifle, *item_chainfist, *item_plasmabeam, *item_rounds, *item_flechettes, *item_tesla, *item_prox, *item_shockwave;
 
 bot_info_t	*botinfo_list;
 int			total_bots;		// number of bots read in from bots.cfg
@@ -1686,6 +1739,47 @@ qboolean paused;			// fake a paused game during deathmatch
 
 #define SPHERE_TYPE				0x00FF
 #define SPHERE_FLAGS			0xFF00
+
+//
+// deathmatch games
+//
+#define		RDM_TAG			2
+#define		RDM_DEATHBALL	3
+
+typedef struct dm_game_rs
+{
+	void		(*GameInit)(void);
+	void		(*PostInitSetup)(void);
+	void		(*ClientBegin) (edict_t *ent);
+	void		(*SelectSpawnPoint) (edict_t *ent, vec3_t origin, vec3_t angles);
+	void		(*PlayerDeath)(edict_t *targ, edict_t *inflictor, edict_t *attacker);
+	void		(*Score)(edict_t *attacker, edict_t *victim, int scoreChange);
+	void		(*PlayerEffects)(edict_t *ent);
+	void		(*DogTag)(edict_t *ent, edict_t *killer, char **pic);
+	void		(*PlayerDisconnect)(edict_t *ent);
+	int			(*ChangeDamage)(edict_t *targ, edict_t *attacker, int damage, int mod);
+	int			(*ChangeKnockback)(edict_t *targ, edict_t *attacker, int knockback, int mod);
+	int			(*CheckDMRules)(void);
+} dm_game_rt;
+
+extern dm_game_rt	DMGame;
+
+void Tag_GameInit (void);
+void Tag_PostInitSetup (void);
+void Tag_PlayerDeath (edict_t *targ, edict_t *inflictor, edict_t *attacker);
+void Tag_Score (edict_t *attacker, edict_t *victim, int scoreChange);
+void Tag_PlayerEffects (edict_t *ent);
+void Tag_DogTag (edict_t *ent, edict_t *killer, char **pic);
+void Tag_PlayerDisconnect (edict_t *ent);
+int  Tag_ChangeDamage (edict_t *targ, edict_t *attacker, int damage, int mod);
+
+void DBall_GameInit (void);
+void DBall_ClientBegin (edict_t *ent);
+void DBall_SelectSpawnPoint (edict_t *ent, vec3_t origin, vec3_t angles);
+int  DBall_ChangeKnockback (edict_t *targ, edict_t *attacker, int knockback, int mod);
+int  DBall_ChangeDamage (edict_t *targ, edict_t *attacker, int damage, int mod);
+void DBall_PostInitSetup (void);
+int  DBall_CheckDMRules (void);
 
 
 float realrange (edict_t *self, edict_t *other);

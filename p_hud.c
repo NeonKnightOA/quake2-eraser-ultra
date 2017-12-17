@@ -40,6 +40,10 @@ void MoveClientToIntermission (edict_t *ent)
 
 	// RAFAEL
 	ent->client->quadfire_framenum = 0;
+	ent->client->ps.rdflags &= ~RDF_IRGOGGLES;		// PGM
+	ent->client->ir_framenum = 0;					// PGM
+	ent->client->nuke_framenum = 0;					// PMM
+	ent->client->double_framenum = 0;				// PMM
 	
 	// RAFAEL
 	ent->client->trap_blew_up = false;
@@ -676,6 +680,13 @@ void G_SetStats (edict_t *ent)
 		ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_quadfire");
 		ent->client->ps.stats[STAT_TIMER] = (ent->client->quadfire_framenum - level.framenum)/10;
 	}
+// PMM
+	else if (ent->client->double_framenum > level.framenum)
+	{
+		ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_double");
+		ent->client->ps.stats[STAT_TIMER] = (ent->client->double_framenum - level.framenum)/10;
+	}
+// PMM
 	else if (ent->client->invincible_framenum > level.framenum)
 	{
 		ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_invulnerability");
@@ -691,6 +702,26 @@ void G_SetStats (edict_t *ent)
 		ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_rebreather");
 		ent->client->ps.stats[STAT_TIMER] = (ent->client->breather_framenum - level.framenum)/10;
 	}
+// PGM
+	else if (ent->client->owned_sphere)
+	{
+		if(ent->client->owned_sphere->spawnflags == 1)			// defender
+			ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_defender");
+		else if(ent->client->owned_sphere->spawnflags == 2)		// hunter
+			ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_hunter");
+		else if(ent->client->owned_sphere->spawnflags == 4)		// vengeance
+			ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_vengeance");
+		else													// error case
+			ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("i_fixme");
+
+		ent->client->ps.stats[STAT_TIMER] = (int)(ent->client->owned_sphere->wait - level.time);
+	}
+	else if (ent->client->ir_framenum > level.framenum)
+	{
+		ent->client->ps.stats[STAT_TIMER_ICON] = gi.imageindex ("p_ir");
+		ent->client->ps.stats[STAT_TIMER] = (ent->client->ir_framenum - level.framenum)/10;
+	}
+// PGM
 	else
 	{
 		ent->client->ps.stats[STAT_TIMER_ICON] = 0;

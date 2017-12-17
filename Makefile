@@ -15,7 +15,7 @@ CC=gcc
 BASE_CFLAGS=-Dstricmp=strcasecmp 
 
 #use these cflags to optimize it
-CFLAGS=$(BASE_CFLAGS) -mtune=i586 -O6 -fomit-frame-pointer \
+CFLAGS=$(BASE_CFLAGS) -mtune=i486 -O6 -fomit-frame-pointer \
 	-fexpensive-optimizations -falign-loops=2 \
 	-falign-jumps=2 -falign-functions=2
 #use these when debugging 

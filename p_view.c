@@ -2,8 +2,7 @@
 #include "g_local.h"
 #include "m_player.h"
 
-
-
+#define EF_YELLOWSHELL 0x08000000;
 edict_t		*current_player;
 gclient_t	*current_client;
 
@@ -429,6 +428,16 @@ void SV_CalcBlend (edict_t *ent)
 		if (remaining > 30 || (remaining & 4) )
 			SV_AddBlend (0, 0, 1, 0.08, ent->client->ps.blend);
 	}
+	// PMM - double damage
+	else if (ent->client->double_framenum > level.framenum)
+	{
+		remaining = ent->client->double_framenum - level.framenum;
+		if (remaining == 30)	// beginning to fade
+			gi.sound(ent, CHAN_ITEM, gi.soundindex("misc/ddamage2.wav"), 1, ATTN_NORM, 0);
+		if (remaining > 30 || (remaining & 4) )
+			SV_AddBlend (0.9, 0.7, 0, 0.08, ent->client->ps.blend);
+	}
+	// PMM
 	// RAFAEL
 	else if (ent->client->quadfire_framenum > level.framenum)
 	{
@@ -462,6 +471,30 @@ void SV_CalcBlend (edict_t *ent)
 		if (remaining > 30 || (remaining & 4) )
 			SV_AddBlend (0.4, 1, 0.4, 0.04, ent->client->ps.blend);
 	}
+
+//PGM
+	if(ent->client->nuke_framenum > level.framenum)
+	{
+		float brightness;
+		brightness = (ent->client->nuke_framenum - level.framenum) / 20.0;
+		SV_AddBlend (1, 1, 1, brightness, ent->client->ps.blend);
+	}
+	if (ent->client->ir_framenum > level.framenum)
+	{
+		remaining = ent->client->ir_framenum - level.framenum;
+		if(remaining > 30 || (remaining & 4))
+		{
+			ent->client->ps.rdflags |= RDF_IRGOGGLES;
+			SV_AddBlend (1, 0, 0, 0.2, ent->client->ps.blend);
+		}
+		else
+			ent->client->ps.rdflags &= ~RDF_IRGOGGLES;
+	}
+	else
+	{
+		ent->client->ps.rdflags &= ~RDF_IRGOGGLES;
+	}
+//PGM
 
 	// add for damage
 	if (ent->client->damage_alpha > 0)
@@ -782,6 +815,9 @@ void G_SetClientEffects (edict_t *ent)
 	ent->s.effects = 0;
 	ent->s.renderfx = 0;
 
+	// PGM - player is always ir visible, even dead.
+	ent->s.renderfx = RF_IR_VISIBLE;
+
 	if (ent->health <= 0 || level.intermissiontime)
 		return;
 
@@ -806,9 +842,11 @@ void G_SetClientEffects (edict_t *ent)
 // AJ render the safety mode shell
 		if (ent->client->safety_mode)
 		{
-//			ent->s.effects |= EF_COLOR_SHELL;
 //			ent->s.renderfx |= (RF_SHELL_GREEN | RF_SHELL_RED);
-			ent->s.effects |= 0x08000000;
+//			ent->s.effects |= EF_YELLOWSHELL;
+//			ent->s.effects |= EF_COLOR_SHELL; //ScarFace- green shell
+//			ent->s.renderfx |= RF_SHELL_GREEN;
+			ent->s.effects |= EF_HALF_DAMAGE; //ScarFace- clear green shell
 		}
 // end AJ
 
@@ -829,8 +867,27 @@ void G_SetClientEffects (edict_t *ent)
 	{
 		remaining = ent->client->quadfire_framenum - level.framenum;
 		if (remaining > 30 || (remaining & 4) )
-			ent->s.effects |= EF_QUAD;
+			ent->s.effects |= EF_DOUBLE;
 	}
+
+//=======
+//ROGUE
+	if (ent->client->double_framenum > level.framenum)
+	{
+		remaining = ent->client->double_framenum - level.framenum;
+		if (remaining > 30 || (remaining & 4) )
+			ent->s.effects |= EF_DOUBLE;
+	}
+/*	if ((ent->client->owned_sphere) && (ent->client->owned_sphere->spawnflags == 1))
+	{
+		ent->s.effects |= EF_HALF_DAMAGE;
+	}*/
+	if (ent->client->tracker_pain_framenum > level.framenum)
+	{
+		ent->s.effects |= EF_TRACKERTRAIL;
+	}
+//ROGUE
+//=======
 
 	if (ent->client->invincible_framenum > level.framenum
 //ZOID
@@ -901,8 +958,8 @@ void G_SetClientSound (edict_t *ent)
 		ent->s.sound = snd_fry;
 	else if (strcmp(weap, "weapon_railgun") == 0)
 		ent->s.sound = gi.soundindex("weapons/rg_hum.wav");
-	else if (strcmp(weap, "weapon_bfg") == 0)
-		ent->s.sound = gi.soundindex("weapons/bfg_hum.wav");
+//	else if (strcmp(weap, "weapon_bfg") == 0)
+//		ent->s.sound = gi.soundindex("weapons/bfg_hum.wav");
 	// RAFAEL
 	else if (strcmp (weap, "weapon_phalanx") == 0)
 		ent->s.sound = gi.soundindex ("weapons/phaloop.wav");

@@ -146,6 +146,7 @@ void SP_misc_transport (edict_t *ent);
 
 // void SP_misc_nuke (edict_t *ent);
 
+void SP_target_steam (edict_t *self);
 void SP_func_plat2 (edict_t *ent);
 
 
@@ -313,6 +314,7 @@ spawn_t	spawns[] = {
 	{"turret_base", SP_turret_base},
 	{"turret_driver", SP_turret_driver},
 #endif
+	{"target_steam", SP_target_steam},
 	{"func_plat2", SP_func_plat2},
 
 	{NULL, NULL}
@@ -336,6 +338,13 @@ void ED_CallSpawn (edict_t *ent)
 		gi.dprintf ("ED_CallSpawn: NULL classname\n");
 		return;
 	}
+	//ScarFace
+	if (!strcmp(ent->classname, "weapon_nailgun"))
+		ent->classname = "weapon_etf_rifle";
+	if (!strcmp(ent->classname, "ammo_nails"))
+		ent->classname = "ammo_flechettes";
+	if (!strcmp(ent->classname, "weapon_heatbeam"))
+		ent->classname = "weapon_plasmabeam";
 
 	// check item spawn functions
 	for (i=0,item=itemlist ; i<game.num_items ; i++,item++)
@@ -649,6 +658,16 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 		if (!stricmp(level.mapname, "command") && !stricmp(ent->classname, "trigger_once") && !stricmp(ent->model, "*27"))
 			ent->spawnflags &= ~SPAWNFLAG_NOT_HARD;
 
+		// ROGUE
+		//ahh, the joys of map hacks .. 
+		if (!Q_stricmp(level.mapname, "rhangar2") && !Q_stricmp(ent->classname, "func_door_rotating") && ent->targetname && !Q_stricmp(ent->targetname, "t265"))
+			ent->spawnflags &= ~SPAWNFLAG_NOT_COOP;
+		if (!Q_stricmp(level.mapname, "rhangar2") && !Q_stricmp(ent->classname, "trigger_always") && ent->target && !Q_stricmp(ent->target, "t265"))
+			ent->spawnflags |= SPAWNFLAG_NOT_COOP;
+		if (!Q_stricmp(level.mapname, "rhangar2") && !Q_stricmp(ent->classname, "func_wall") && !Q_stricmp(ent->model, "*15"))
+			ent->spawnflags |= SPAWNFLAG_NOT_COOP;
+		// rogue
+
 		// remove things (except the world) from different skill levels or deathmatch
 		if (ent != g_edicts)
 		{
@@ -678,13 +697,33 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 			ent->spawnflags &= ~(SPAWNFLAG_NOT_EASY|SPAWNFLAG_NOT_MEDIUM|SPAWNFLAG_NOT_HARD|SPAWNFLAG_NOT_COOP|SPAWNFLAG_NOT_DEATHMATCH);
 		}
 
+//PGM - do this before calling the spawn function so it can be overridden.
+#ifdef ROGUE_GRAVITY
+		ent->gravityVector[0] =  0.0;
+		ent->gravityVector[1] =  0.0;
+		ent->gravityVector[2] = -1.0;
+#endif
+//PGM
+
 		ED_CallSpawn (ent);
+
+		ent->s.renderfx |= RF_IR_VISIBLE;		//PGM
 	}	
 
 	// we might read in a CTF flag
 	PlayerTrail_Init ();
 
 	gi.dprintf ("%i entities inhibited\n", inhibit);
+
+#ifdef DEBUG
+	i = 1;
+	ent = EDICT_NUM(i);
+	while (i < globals.num_edicts) {
+		if (ent->inuse != 0 || ent->inuse != 1)
+			Com_DPrintf("Invalid entity %d\n", i);
+		i++, ent++;
+	}
+#endif
 
 	G_FindTeams ();
 
@@ -970,13 +1009,23 @@ void SP_worldspawn (edict_t *ent)
 	item_ionripper	= FindItem("Ionripper");
 	item_trap	= FindItem("Trap");
 	item_quadfire	= FindItem("DualFire Damage");
+	item_ir_goggles = FindItem("IR Goggles");
+	item_double = FindItem("Double Damage");
+	item_sphere_vengeance = FindItem("Vengeance sphere");
+	item_sphere_hunter = FindItem("Hunter sphere");
+	item_sphere_defender = FindItem("Defender sphere");
+	item_doppleganger = FindItem("Doppleganger");
+
 	item_magslugs	= FindItem("Mag Slug");
 
 	item_chainfist	= FindItem("Chainfist");
+	item_shockwave	= FindItem("Shockwave");
 	item_disruptor	= FindItem("Disruptor");
 	item_etfrifle	= FindItem("ETF Rifle");
 	item_plasmabeam	= FindItem("Plasma Beam");
 	item_proxlauncher	= FindItem("Prox Launcher");
+	item_prox = FindItem("Prox");
+	item_tesla = FindItem("Tesla");
 	item_rounds	= FindItem("Rounds");
 	item_flechettes	= FindItem("Flechettes");
 	
@@ -1093,6 +1142,9 @@ void SP_worldspawn (edict_t *ent)
 	gi.soundindex ("misc/h2ohit1.wav");		// landing splash
 
 	gi.soundindex ("items/damage.wav");
+	// ROGUE - double damage
+	gi.soundindex ("misc/ddamage1.wav");
+	// rogue
 	gi.soundindex ("items/protect.wav");
 	gi.soundindex ("items/protect4.wav");
 	gi.soundindex ("weapons/noammo.wav");
@@ -1217,3 +1269,375 @@ void SP_worldspawn (edict_t *ent)
 
 }
 
+//
+// ROGUE
+//
+
+// FindSpawnPoint
+// PMM - this is used by the medic commander (possibly by the carrier) to find a good spawn point
+// if the startpoint is bad, try above the startpoint for a bit
+
+qboolean FindSpawnPoint (vec3_t startpoint, vec3_t mins, vec3_t maxs, vec3_t spawnpoint, float maxMoveUp)
+{
+	trace_t		tr;
+	float		height;
+	vec3_t		top;
+
+	height = maxs[2] - mins[2];
+
+	tr = gi.trace (startpoint, mins, maxs, startpoint, NULL, MASK_MONSTERSOLID|CONTENTS_PLAYERCLIP);
+	if((tr.startsolid || tr.allsolid) || (tr.ent != world))
+	{
+//		if ( ((tr.ent->svflags & SVF_MONSTER) && (tr.ent->health <= 0)) ||
+//			 (tr.ent->svflags & SVF_DAMAGEABLE) )
+//		{
+//			T_Damage (tr.ent, self, self, vec3_origin, self->enemy->s.origin,
+//						pain_normal, hurt, 0, 0, MOD_UNKNOWN);
+
+		VectorCopy (startpoint, top);
+		top[2] += maxMoveUp;
+/*
+		gi.WriteByte (svc_temp_entity);
+		gi.WriteByte (TE_DEBUGTRAIL);
+		gi.WritePosition (top);
+		gi.WritePosition (startpoint);
+		gi.multicast (startpoint, MULTICAST_ALL);	
+*/
+		tr = gi.trace (top, mins, maxs, startpoint, NULL, MASK_MONSTERSOLID);
+		if (tr.startsolid || tr.allsolid)
+		{
+//			if ((g_showlogic) && (g_showlogic->value))
+//				if (tr.ent)
+//					gi.dprintf("FindSpawnPoint: failed to find a point -- blocked by %s\n", tr.ent->classname);
+//				else
+//					gi.dprintf("FindSpawnPoint: failed to find a point\n");
+
+			return false;
+		} 
+		else
+		{
+//			if ((g_showlogic) && (g_showlogic->value))
+//				gi.dprintf ("FindSpawnPoint: %s -> %s\n", vtos (startpoint), vtos (tr.endpos));
+			VectorCopy (tr.endpos, spawnpoint);
+			return true;
+		}
+	}
+	else
+	{
+		VectorCopy (startpoint, spawnpoint);
+		return true;
+	}
+}
+
+// FIXME - all of this needs to be tweaked to handle the new gravity rules
+// if we ever want to spawn stuff on the roof
+
+//
+// CheckSpawnPoint
+//
+// PMM - checks volume to make sure we can spawn a monster there (is it solid?)
+//
+// This is all fliers should need
+
+qboolean CheckSpawnPoint (vec3_t origin, vec3_t mins, vec3_t maxs)
+{
+	trace_t	tr;
+
+	if (!mins || !maxs || VectorCompare(mins, vec3_origin) || VectorCompare (maxs, vec3_origin))
+	{
+		return false;
+	}
+
+	tr = gi.trace (origin, mins, maxs, origin, NULL, MASK_MONSTERSOLID);
+	if(tr.startsolid || tr.allsolid)
+	{
+//		if ((g_showlogic) && (g_showlogic->value))
+//			gi.dprintf("createmonster in wall. removing\n");
+		return false;
+	}
+	if (tr.ent != world)
+	{
+//		if ((g_showlogic) && (g_showlogic->value))
+//			gi.dprintf("createmonster in entity %s\n", tr.ent->classname);
+		return false;
+	}	
+	return true;
+}
+
+//
+// CheckGroundSpawnPoint
+//
+// PMM - used for walking monsters
+//  checks:
+//		1)	is there a ground within the specified height of the origin?
+//		2)	is the ground non-water?
+//		3)	is the ground flat enough to walk on?
+//
+
+qboolean CheckGroundSpawnPoint (vec3_t origin, vec3_t entMins, vec3_t entMaxs, float height, float gravity)
+{
+	trace_t		tr;
+	vec3_t		start, stop;
+	int			failure = 0;
+	vec3_t		mins, maxs;
+	int			x, y;	
+	float		mid, bottom;
+
+	if (!CheckSpawnPoint (origin, entMins, entMaxs))
+		return false;
+
+	// FIXME - this is too conservative about angled surfaces
+
+	VectorCopy (origin, stop);
+	// FIXME - gravity vector
+	stop[2] = origin[2] + entMins[2] - height;
+
+	/*
+	gi.WriteByte (svc_temp_entity);
+	gi.WriteByte (TE_DEBUGTRAIL);
+	gi.WritePosition (origin);
+	gi.WritePosition (stop);
+	gi.multicast (start, MULTICAST_ALL);
+	*/
+
+	tr = gi.trace (origin, entMins, entMaxs, stop, NULL, MASK_MONSTERSOLID | MASK_WATER);
+	// it's not going to be all solid or start solid, since that's checked above
+
+	if ((tr.fraction < 1) && (tr.contents & MASK_MONSTERSOLID))
+	{
+		// we found a non-water surface down there somewhere.  now we need to check to make sure it's not too sloped
+		//
+		// algorithm straight out of m_move.c:M_CheckBottom()
+		//
+
+		// first, do the midpoint trace
+
+		VectorAdd (tr.endpos, entMins, mins);
+		VectorAdd (tr.endpos, entMaxs, maxs);
+
+
+		// first, do the easy flat check
+		//
+#ifdef ROGUE_GRAVITY
+		// FIXME - this will only handle 0,0,1 and 0,0,-1 gravity vectors
+		if(gravity > 0)
+			start[2] = maxs[2] + 1;
+		else
+			start[2] = mins[2] - 1;
+#else
+		start[2] = mins[2] - 1;
+#endif
+		for	(x=0 ; x<=1 ; x++)
+		{
+			for	(y=0 ; y<=1 ; y++)
+			{
+				start[0] = x ? maxs[0] : mins[0];
+				start[1] = y ? maxs[1] : mins[1];
+				if (gi.pointcontents (start) != CONTENTS_SOLID)
+					goto realcheck;
+			}
+		}
+
+		// if it passed all four above checks, we're done
+		return true;
+
+realcheck:
+
+		// check it for real
+
+		start[0] = stop[0] = (mins[0] + maxs[0])*0.5;
+		start[1] = stop[1] = (mins[1] + maxs[1])*0.5;
+		start[2] = mins[2];
+
+		tr = gi.trace (start, vec3_origin, vec3_origin, stop, NULL, MASK_MONSTERSOLID);
+
+		if (tr.fraction == 1.0)
+			return false;
+		mid = bottom = tr.endpos[2];
+
+#ifdef ROGUE_GRAVITY
+		if(gravity < 0)
+		{
+			start[2] = mins[2];
+			stop[2] = start[2] - STEPSIZE - STEPSIZE;
+			mid = bottom = tr.endpos[2] + entMins[2];
+		}
+		else
+		{
+			start[2] = maxs[2];
+			stop[2] = start[2] + STEPSIZE + STEPSIZE;
+			mid = bottom = tr.endpos[2] - entMaxs[2];
+		}
+#else
+		stop[2] = start[2] - 2*STEPSIZE;
+		mid = bottom = tr.endpos[2] + entMins[2];
+#endif
+
+		for	(x=0 ; x<=1 ; x++)
+			for	(y=0 ; y<=1 ; y++)
+			{
+				start[0] = stop[0] = x ? maxs[0] : mins[0];
+				start[1] = stop[1] = y ? maxs[1] : mins[1];
+				
+				/*
+				gi.WriteByte (svc_temp_entity);
+				gi.WriteByte (TE_DEBUGTRAIL);
+				gi.WritePosition (start);
+				gi.WritePosition (stop);
+				gi.multicast (start, MULTICAST_ALL);	
+				*/
+				tr = gi.trace (start, vec3_origin, vec3_origin, stop, NULL, MASK_MONSTERSOLID);
+
+//PGM
+#ifdef ROGUE_GRAVITY
+// FIXME - this will only handle 0,0,1 and 0,0,-1 gravity vectors
+				if(gravity > 0)
+				{
+					if (tr.fraction != 1.0 && tr.endpos[2] < bottom)
+						bottom = tr.endpos[2];
+					if (tr.fraction == 1.0 || tr.endpos[2] - mid > STEPSIZE)
+					{
+//						if ((g_showlogic) && (g_showlogic->value))
+//							gi.dprintf ("spawn - rejecting due to uneven ground\n");
+						return false;
+					}
+				}
+				else
+				{
+					if (tr.fraction != 1.0 && tr.endpos[2] > bottom)
+						bottom = tr.endpos[2];
+					if (tr.fraction == 1.0 || mid - tr.endpos[2] > STEPSIZE)
+					{
+//						if ((g_showlogic) && (g_showlogic->value))
+//							gi.dprintf ("spawn - rejecting due to uneven ground\n");
+						return false;
+					}
+				}
+#else
+				if (tr.fraction != 1.0 && tr.endpos[2] > bottom)
+					bottom = tr.endpos[2];
+				if (tr.fraction == 1.0 || mid - tr.endpos[2] > STEPSIZE)
+					{
+						return false;
+					}
+#endif
+			}
+
+		return true;		// we can land on it, it's ok
+	}
+
+	// otherwise, it's either water (bad) or not there (too far)
+	// if we're here, it's bad below
+//	if ((g_showlogic) && (g_showlogic->value))
+//	{
+//		if (tr.fraction < 1)
+//			if ((g_showlogic) && (g_showlogic->value))
+//				gi.dprintf("groundmonster would fall into water/slime/lava\n");
+//		else
+//			if ((g_showlogic) && (g_showlogic->value))
+//				gi.dprintf("groundmonster would fall too far\n");
+//	}
+
+	return false;
+}
+
+void DetermineBBox (char *classname, vec3_t mins, vec3_t maxs)
+{
+	// FIXME - cache this stuff
+	edict_t		*newEnt;
+
+	newEnt = G_Spawn();
+
+	VectorCopy(vec3_origin, newEnt->s.origin);
+	VectorCopy(vec3_origin, newEnt->s.angles);
+	newEnt->classname = ED_NewString (classname);
+	newEnt->monsterinfo.aiflags |= AI_DO_NOT_COUNT;
+	
+	ED_CallSpawn(newEnt);
+	
+	VectorCopy (newEnt->mins, mins);
+	VectorCopy (newEnt->maxs, maxs);
+
+	G_FreeEdict (newEnt);
+}
+
+// ****************************
+// SPAWNGROW stuff
+// ****************************
+
+#define SPAWNGROW_LIFESPAN		0.3
+
+void spawngrow_think (edict_t *self)
+{
+	int i;
+
+	for (i=0; i<2; i++)
+	{
+			self->s.angles[0] = rand()%360;
+			self->s.angles[1] = rand()%360;
+			self->s.angles[2] = rand()%360;
+	}
+	if ((level.time < self->wait) && (self->s.frame < 2))
+		self->s.frame++;
+	if (level.time >= self->wait)
+	{
+		if (self->s.effects & EF_SPHERETRANS)
+		{
+			G_FreeEdict (self);
+			return;
+		}
+		else if (self->s.frame > 0)
+			self->s.frame--;
+		else
+		{
+			G_FreeEdict (self);
+			return;
+		}
+	}
+	self->nextthink += FRAMETIME;
+}
+
+void SpawnGrow_Spawn (vec3_t startpos, int size)
+{
+	edict_t *ent;
+	int	i;
+	float	lifespan;
+
+	ent = G_Spawn();
+	VectorCopy(startpos, ent->s.origin);
+	for (i=0; i<2; i++)
+	{
+			ent->s.angles[0] = rand()%360;
+			ent->s.angles[1] = rand()%360;
+			ent->s.angles[2] = rand()%360;
+	}
+	ent->solid = SOLID_NOT;
+//	ent->s.renderfx = RF_FULLBRIGHT | RF_IR_VISIBLE;
+	ent->s.renderfx = RF_IR_VISIBLE;
+	ent->movetype = MOVETYPE_NONE;
+	ent->classname = "spawngro";
+
+	if (size <= 1)
+	{
+		lifespan = SPAWNGROW_LIFESPAN;
+		ent->s.modelindex = gi.modelindex("models/items/spawngro2/tris.md2");
+	}
+	else if (size == 2)
+	{
+		ent->s.modelindex = gi.modelindex("models/items/spawngro3/tris.md2");
+		lifespan = 2;
+	}
+	else
+	{
+		ent->s.modelindex = gi.modelindex("models/items/spawngro/tris.md2");
+		lifespan = SPAWNGROW_LIFESPAN;
+	}
+
+	ent->think = spawngrow_think;
+
+	ent->wait = level.time + lifespan;
+	ent->nextthink = level.time + FRAMETIME;
+	if (size != 2)
+		ent->s.effects |= EF_SPHERETRANS;
+	gi.linkentity (ent);
+}

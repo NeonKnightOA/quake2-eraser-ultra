@@ -320,11 +320,66 @@ edict_t *SelectRandomDeathmatchSpawnPoint (void);
 edict_t *SelectFarthestDeathmatchSpawnPoint (void);
 float	PlayersRangeFromSpot (edict_t *spot);
 
+//ScarFace- tell if player already has a valid LMCTF skin to keep from changing skins after death
+qboolean HasRedLMCTFSkin (char *curskin, char t[64])
+{
+	if (strstr(t, "female"))
+	{
+//		gi.dprintf ("Searching red female skins...\n");
+//		gi.dprintf ("Current skin is: %s\n", curskin);
+		if ( strstr(curskin, "femd-r")  || strstr(curskin, "femo-r") || strstr(curskin, "femr-r")
+			|| strstr(curskin, "lm-rf") || strstr(curskin, "rb-rf") )
+			return true;
+	}
+	else if (strstr(t, "male"))
+	{
+//		gi.dprintf ("Searching red male skins...\n");
+//		gi.dprintf ("Current skin is: %s\n", curskin);
+		if ( strstr(curskin, "lm-rm")  || strstr(curskin, "maled-r") || strstr(curskin, "maleo-r")
+			|| strstr(curskin, "maler-r") || strstr(curskin, "rb-rm") || strstr(curskin, "w-rm") )
+			return true;
+	}
+//	gi.dprintf ("Invalid red LMCTF skin\n");
+	return false;
+}
+
+qboolean HasBlueLMCTFSkin (char *curskin, char t[64])
+{
+	if (strstr(t, "female"))
+	{
+//		gi.dprintf ("Searching blue female skins...\n");
+//		gi.dprintf ("Current skin is: %s\n", curskin);
+		if ( strstr(curskin, "femd-b")  || strstr(curskin, "femo-b") || strstr(curskin, "femr-b")
+			|| strstr(curskin, "lm-bf") || strstr(curskin, "rb-bf") )
+			return true;
+	}
+	else if (strstr(t, "male"))
+	{
+//		gi.dprintf ("Searching blue male skins...\n");
+//		gi.dprintf ("Current skin is: %s\n", curskin);
+		if ( strstr(curskin, "lm-bm")  || strstr(curskin, "maled-b") || strstr(curskin, "maleo-b")
+			|| strstr(curskin, "maler-b") || strstr(curskin, "rb-bm") || strstr(curskin, "w-bm") )
+			return true;
+	}
+//	gi.dprintf ("Invalid blue LMCTF skin\n");
+	return false;
+}
+
 void CTFAssignSkin(edict_t *ent, char *s)
 {
 	int playernum = ent-g_edicts-1;
 	char *p;
 	char t[64];
+	char *curskin;
+//	char *curmodel;
+	char *lm_model;
+	char *lm_skin;
+	float r1;
+	r1 = random();
+
+	//get player's current skin name
+	curskin = Info_ValueForKey (ent->client->pers.userinfo, "skin");
+//	curmodel = Info_ValueForKey (ent->client->pers.userinfo, "model");
 
 	if (!ctf->value)
 		return;
@@ -335,17 +390,110 @@ void CTFAssignSkin(edict_t *ent, char *s)
 		p[1] = 0;
 	else
 		strcpy(t, "male/");
-
-	switch (ent->client->resp.ctf_team) {
+	switch (ent->client->resp.ctf_team)
+	{
 	case CTF_TEAM1:
 // AJ added support for LMCTF skins (sorta)
 		if (lmctf->value)
-		{
+		{	
 //			s = Info_ValueForKey (ent->client->pers.userinfo, "skin");
-			gi.configstring (CS_PLAYERSKINS+playernum, 
-				va("%s\\%s\\%s", ent->client->pers.netname, "female", "lm-rf1"));
+			//ScarFace- assign skin
+			if (strstr(t, "female") || strstr(t, "crakhor")) //female
+			{
+				lm_model = "female";
+				if (r1 < 0.0909090909)
+					lm_skin = "femd-r";
+				else if (r1 < 0.1818181818)
+					lm_skin = "femd-r2";
+				else if (r1 < 0.2727272727)
+					lm_skin = "femo-r";
+				else if (r1 < 0.3636363636)
+					lm_skin = "femo-r2";
+				else if (r1 < 0.4545454545)
+					lm_skin = "femr-r";
+				else if (r1 < 0.5454545454)
+					lm_skin = "femr-r2";
+				else if (r1 < 0.6363636363)
+					lm_skin = "lm-rf1";
+				else if (r1 < 0.7272727272)
+					lm_skin = "lm-rf2";
+				else if (r1 < 0.8181818181)
+					lm_skin = "rb-rf1";
+				else if (r1 < 0.9090909090)
+					lm_skin = "rb-rf2";
+				else
+					lm_skin = "rb-rf3";
+			}
+			else //male
+			{
+				lm_model = "male";
+				if (r1 < 0.037037037)
+					lm_skin = "lm-rm1";
+				else if (r1 < 0.074074074)
+					lm_skin = "lm-rm2";
+				else if (r1 < 0.111111111)
+					lm_skin = "lm-rm3";
+				else if (r1 < 0.148148148)
+					lm_skin = "lm-rm4";
+				else if (r1 < 0.185185185)
+					lm_skin = "lm-rm5";
+				else if (r1 < 0.222222222)
+					lm_skin = "lm-rm6";
+				else if (r1 < 0.259259259)
+					lm_skin = "lm-rm7";
+				else if (r1 < 0.296296296)
+					lm_skin = "maled-r";
+				else if (r1 < 0.333333333)
+					lm_skin = "maled-r2";
+				else if (r1 < 0.370370370)
+					lm_skin = "maleo-r";
+				else if (r1 < 0.407407407)
+					lm_skin = "maleo-r2";
+				else if (r1 < 0.444444444)
+					lm_skin = "maler-r";
+				else if (r1 < 0.481481481)
+					lm_skin = "maler-r2";
+				else if (r1 < 0.518518518)
+					lm_skin = "rb-rm1";
+				else if (r1 < 0.555555555)
+					lm_skin = "rb-rm2";
+				else if (r1 < 0.592592592)
+					lm_skin = "rb-rm3";
+				else if (r1 < 0.629629629)
+					lm_skin = "rb-rm4";
+				else if (r1 < 0.666666666)
+					lm_skin = "rb-rm5";
+				else if (r1 < 0.703703703)
+					lm_skin = "rb-rm6";
+				else if (r1 < 0.740740740)
+					lm_skin = "rb-rm7";
+				else if (r1 < 0.777777777)
+					lm_skin = "w-rm1";
+				else if (r1 < 0.814814814)
+					lm_skin = "w-rm2";
+				else if (r1 < 0.851851851)
+					lm_skin = "w-rm3";
+				else if (r1 < 0.888888888)
+					lm_skin = "w-rm4";
+				else if (r1 < 0.925925925)
+					lm_skin = "w-rm5";
+				else if (r1 < 0.962962962)
+					lm_skin = "w-rm6";
+				else
+					lm_skin = "w-rm7";
+			}
+			if (!HasRedLMCTFSkin (curskin, t))
+				gi.configstring (CS_PLAYERSKINS+playernum, 
+					va("%s\\%s/%s", ent->client->pers.netname, lm_model, lm_skin)); // "female", "lm-rf1"
 		}
-		else gi.configstring (CS_PLAYERSKINS+playernum, va("%s\\%s%s", 
+		//check if current skin name starts with "ctf_r" to allow additional CTF skins
+		else if (strstr(curskin, "ctf_r"))
+		{
+			gi.dprintf ("Using player-selected CTF skin\n");
+			//do nothing
+		}
+		else //force skin to red team default of "ctf_r"
+			gi.configstring (CS_PLAYERSKINS+playernum, va("%s\\%s%s", 
 				ent->client->pers.netname, t, CTF_TEAM1_SKIN) );
 // end AJ
 		break;
@@ -353,16 +501,116 @@ void CTFAssignSkin(edict_t *ent, char *s)
 // AJ added support for LMCTF skins (sorta)
 		if (lmctf->value)
 		{
-			gi.configstring (CS_PLAYERSKINS+playernum, 
-				va("%s\\%s\\%s", ent->client->pers.netname, "male", "lm-bm1"));
+			//ScarFace- assign random model and skin
+			if (strstr(t, "female") || strstr(t, "crakhor")) //female
+			{
+				lm_model = "female";
+				if (r1 < 0.0909090909)
+					lm_skin = "femd-b";
+				else if (r1 < 0.1818181818)
+					lm_skin = "femd-b2";
+				else if (r1 < 0.2727272727)
+					lm_skin = "femo-b";
+				else if (r1 < 0.3636363636)
+					lm_skin = "femo-b2";
+				else if (r1 < 0.4545454545)
+					lm_skin = "femr-b";
+				else if (r1 < 0.5454545454)
+					lm_skin = "femr-b2";
+				else if (r1 < 0.6363636363)
+					lm_skin = "lm-bf1";
+				else if (r1 < 0.7272727272)
+					lm_skin = "lm-bf2";
+				else if (r1 < 0.8181818181)
+					lm_skin = "rb-bf1";
+				else if (r1 < 0.9090909090)
+					lm_skin = "rb-bf2";
+				else
+					lm_skin = "rb-bf3";
+			}
+			else //male
+			{
+				lm_model = "male";
+				if (r1 < 0.037037037)
+					lm_skin = "lm-bm1";
+				else if (r1 < 0.074074074)
+					lm_skin = "lm-bm2";
+				else if (r1 < 0.111111111)
+					lm_skin = "lm-bm3";
+				else if (r1 < 0.148148148)
+					lm_skin = "lm-bm4";
+				else if (r1 < 0.185185185)
+					lm_skin = "lm-bm5";
+				else if (r1 < 0.222222222)
+					lm_skin = "lm-bm6";
+				else if (r1 < 0.259259259)
+					lm_skin = "lm-bm7";
+				else if (r1 < 0.296296296)
+					lm_skin = "maled-b";
+				else if (r1 < 0.333333333)
+					lm_skin = "maled-b2";
+				else if (r1 < 0.370370370)
+					lm_skin = "maleo-b";
+				else if (r1 < 0.407407407)
+					lm_skin = "maleo-b2";
+				else if (r1 < 0.444444444)
+					lm_skin = "maler-b";
+				else if (r1 < 0.481481481)
+					lm_skin = "maler-b2";
+				else if (r1 < 0.518518518)
+					lm_skin = "rb-bm1";
+				else if (r1 < 0.555555555)
+					lm_skin = "rb-bm2";
+				else if (r1 < 0.592592592)
+					lm_skin = "rb-bm3";
+				else if (r1 < 0.629629629)
+					lm_skin = "rb-bm4";
+				else if (r1 < 0.666666666)
+					lm_skin = "rb-bm5";
+				else if (r1 < 0.703703703)
+					lm_skin = "rb-bm6";
+				else if (r1 < 0.740740740)
+					lm_skin = "rb-bm7";
+				else if (r1 < 0.777777777)
+					lm_skin = "w-bm1";
+				else if (r1 < 0.814814814)
+					lm_skin = "w-bm2";
+				else if (r1 < 0.851851851)
+					lm_skin = "w-bm3";
+				else if (r1 < 0.888888888)
+					lm_skin = "w-bm4";
+				else if (r1 < 0.925925925)
+					lm_skin = "w-bm5";
+				else if (r1 < 0.962962962)
+					lm_skin = "w-bm6";
+				else
+					lm_skin = "w-bm7";
+			}
+			if (!HasBlueLMCTFSkin (curskin, t))
+				gi.configstring (CS_PLAYERSKINS+playernum, 
+					va("%s\\%s/%s", ent->client->pers.netname, lm_model, lm_skin)); // "male", "lm-bm1"
 		}
-		else gi.configstring (CS_PLAYERSKINS+playernum,
+		//check if current skin name starts with "ctf_b" to allow additional CTF skins
+		else if (strstr(curskin, "ctf_b"))
+		{
+			gi.dprintf ("Using player-selected CTF skin\n");
+			//do nothing
+		}
+		else //force skin to blue team default of "ctf_b"
+			gi.configstring (CS_PLAYERSKINS+playernum,
 				va("%s\\%s%s", ent->client->pers.netname, t, CTF_TEAM2_SKIN) );
 // end AJ
 		break;
 // AJ
 	case CTF_TEAM3:
-		gi.configstring (CS_PLAYERSKINS+playernum,
+		//check if current skin name starts with "ctf_g" to allow additional CTF skins
+		if (strstr(curskin, "ctf_g"))
+		{
+			gi.dprintf ("Using player-selected CTF skin\n");
+			//do nothing
+		}
+		else //force skin to green team default of "ctf_g"
+			gi.configstring (CS_PLAYERSKINS+playernum,
 				va("%s\\%s%s", ent->client->pers.netname, t, CTF_TEAM3_SKIN) );
 		break;
 // end AJ
@@ -412,13 +660,15 @@ void CTFAssignTeam(gclient_t *who, qboolean is_bot)
 	}
 // end AJ
 
-	for (i = 1; i <= maxclients->value; i++) {
+	for (i = 1; i <= maxclients->value; i++) 
+	{
 		player = &g_edicts[i];
 
 		if (!player->inuse || player->client == who)
 			continue;
 
-		switch (player->client->resp.ctf_team) {
+		switch (player->client->resp.ctf_team) 
+		{
 		case CTF_TEAM1:
 			team1count++;
 			break;
@@ -434,8 +684,16 @@ void CTFAssignTeam(gclient_t *who, qboolean is_bot)
 	}
 	if (team1count < team2count)
 		who->resp.ctf_team = CTF_TEAM1;
+	else if ((team1count < team3count) && (ttctf->value))
+		who->resp.ctf_team = CTF_TEAM1;
 	else if (team2count < team1count)
 		who->resp.ctf_team = CTF_TEAM2;
+	else if ((team2count < team3count) && (ttctf->value))
+		who->resp.ctf_team = CTF_TEAM2;
+	else if ((team3count < team1count) && (ttctf->value))
+		who->resp.ctf_team = CTF_TEAM3;
+	else if ((team3count < team2count) && (ttctf->value))
+		who->resp.ctf_team = CTF_TEAM3;
 	else if (rand() & 1)
 		who->resp.ctf_team = CTF_TEAM1;
 	else
@@ -537,7 +795,7 @@ void CTFFragBonuses(edict_t *targ, edict_t *inflictor, edict_t *attacker)
 {
 	int i;
 	edict_t *ent;
-	gitem_t *flag_item, *enemy_flag_item;
+	gitem_t *flag_item, *enemy_flag_item, *enemy_flag_item2;
 	int otherteam;
 	edict_t *flag, *carrier;
 	char *c;
@@ -555,16 +813,29 @@ void CTFFragBonuses(edict_t *targ, edict_t *inflictor, edict_t *attacker)
 		return; // whoever died isn't on a team
 
 	// same team, if the flag at base, check to he has the enemy flag
-	if (targ->client->resp.ctf_team == CTF_TEAM1) {
+	if (targ->client->resp.ctf_team == CTF_TEAM1) 
+	{
 		flag_item = flag1_item;
 		enemy_flag_item = flag2_item;
-	} else {
+		enemy_flag_item2 = flag3_item;
+	}
+	else  if (targ->client->resp.ctf_team == CTF_TEAM2)
+	{
 		flag_item = flag2_item;
 		enemy_flag_item = flag1_item;
+		enemy_flag_item2 = flag3_item;
+
+	}
+	else  //ScarFace added
+	{
+		flag_item = flag3_item;
+		enemy_flag_item = flag1_item;
+		enemy_flag_item2 = flag2_item;
 	}
 
 	// did the attacker frag the flag carrier?
-	if (targ->client->pers.inventory[ITEM_INDEX(enemy_flag_item)]) {
+	if ((targ->client->pers.inventory[ITEM_INDEX(enemy_flag_item)]) || (targ->client->pers.inventory[ITEM_INDEX(enemy_flag_item2)])) 
+	{
 		attacker->client->resp.ctf_lastfraggedcarrier = level.time;
 		attacker->client->resp.score += CTF_FRAG_CARRIER_BONUS;
 		if (!attacker->bot_client)
@@ -583,7 +854,8 @@ void CTFFragBonuses(edict_t *targ, edict_t *inflictor, edict_t *attacker)
 
 	if (targ->client->resp.ctf_lasthurtcarrier &&
 		level.time - targ->client->resp.ctf_lasthurtcarrier < CTF_CARRIER_DANGER_PROTECT_TIMEOUT &&
-		!attacker->client->pers.inventory[ITEM_INDEX(flag_item)]) {
+		!attacker->client->pers.inventory[ITEM_INDEX(flag_item)]) 
+	{
 		// attacker is on the same team as the flag carrier and
 		// fragged a guy who hurt our flag carrier
 		attacker->client->resp.score += CTF_CARRIER_DANGER_PROTECT_BONUS;
@@ -605,6 +877,12 @@ void CTFFragBonuses(edict_t *targ, edict_t *inflictor, edict_t *attacker)
 	case CTF_TEAM2:
 		c = "item_flag_team2";
 		break;
+	case CTF_TEAM3: //ScarFace added
+		if (!ttctf->value)
+			return;
+		c = "item_flag_team3";
+		break;
+
 	default:
 		return;
 	}
@@ -845,6 +1123,20 @@ qboolean CTFPickup_Flag(edict_t *ent, edict_t *other)
 				{
 					if (ctf_team == CTF_TEAM1)
 					{
+						switch (ctfgame.team1 % 3) //ScarFace- these were switched
+						{	
+						case 0:	
+							gi.sound (ent, CHAN_RELIABLE+CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex("ctf/redscore1.wav"), 1, ATTN_NONE, 0);
+							break;
+						case 1:	
+							gi.sound (ent, CHAN_RELIABLE+CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex("ctf/redscore2.wav"), 1, ATTN_NONE, 0);
+							break;
+						default:
+							gi.sound (ent, CHAN_RELIABLE+CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex("ctf/redscore3.wav"), 1, ATTN_NONE, 0);
+						}
+					}
+					else
+					{
 						switch (ctfgame.team1 % 3)
 						{
 						case 0:	
@@ -855,21 +1147,6 @@ qboolean CTFPickup_Flag(edict_t *ent, edict_t *other)
 							break;
 						default:
 							gi.sound (ent, CHAN_RELIABLE+CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex("ctf/bluescore3.wav"), 1, ATTN_NONE, 0);
-						}
-					}
-					else
-					{
-						switch (ctfgame.team1 % 3)
-						{
-						case 0:	
-							gi.sound (ent, CHAN_RELIABLE+CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex("ctf/redscore1.wav"), 1, ATTN_NONE, 0);
-							break;
-						case 1:	
-							gi.sound (ent, CHAN_RELIABLE+CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex("ctf/redscore2.wav"), 1, ATTN_NONE, 0);
-							break;
-						default:
-							gi.sound (ent, CHAN_RELIABLE+CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex("ctf/redscore3.wav"), 1, ATTN_NONE, 0);
-
 						}
 					}
 				}
@@ -932,7 +1209,8 @@ qboolean CTFPickup_Flag(edict_t *ent, edict_t *other)
 		other->takedamage = DAMAGE_YES;
 		other->client->safety_mode = false;
 		other->client->ps.stats[STAT_LITHIUM_MODE] = 0;
-		other->s.effects &= 0xF7FFFFFF; // clear the yellow shell
+//		other->s.effects &= 0xF7FFFFFF; // clear the yellow shell
+		ent->s.effects &= EF_HALF_DAMAGE; //ScarFace- clear green shell
 	}
 // end AJ
 
@@ -1591,13 +1869,30 @@ void CTFEffects(edict_t *player)
 			player->s.effects |= EF_FLAG2;
 		}
 	}
-
-	if (player->client->pers.inventory[ITEM_INDEX(flag1_item)])
-		player->s.modelindex3 = gi.modelindex("players/male/flag1.md2");
+	//if both red and blue flags -ScarFace
+	if ((player->client->pers.inventory[ITEM_INDEX(flag1_item)]) && (player->client->pers.inventory[ITEM_INDEX(flag2_item)]))
+		player->s.modelindex3 = gi.modelindex("models/flags/flag4.md2");
+	//if both red and green flags
+	else if ((player->client->pers.inventory[ITEM_INDEX(flag1_item)]) && (player->client->pers.inventory[ITEM_INDEX(flag3_item)]))
+		player->s.modelindex3 = gi.modelindex("models/flags/flag5.md2");
+	//if both blue and green flags
+	else if ((player->client->pers.inventory[ITEM_INDEX(flag2_item)]) && (player->client->pers.inventory[ITEM_INDEX(flag3_item)]))
+		player->s.modelindex3 = gi.modelindex("models/flags/flag6.md2");
+	//red flag
+	else if (player->client->pers.inventory[ITEM_INDEX(flag1_item)])
+		if (ttctf->value)  //use 3Team CTF model path
+			player->s.modelindex3 = gi.modelindex("models/flags/flag1.md2");
+		else
+			player->s.modelindex3 = gi.modelindex("players/male/flag1.md2");
+	//blue flag
 	else if (player->client->pers.inventory[ITEM_INDEX(flag2_item)])
-		player->s.modelindex3 = gi.modelindex("players/male/flag2.md2");
+		if (ttctf->value)  //use 3Team CTF model path
+			player->s.modelindex3 = gi.modelindex("models/flags/flag2.md2");
+		else
+			player->s.modelindex3 = gi.modelindex("players/male/flag2.md2");
+	//green flag
 	else if (player->client->pers.inventory[ITEM_INDEX(flag3_item)])
-		player->s.modelindex3 = gi.modelindex("players/male/flag3.md2");
+		player->s.modelindex3 = gi.modelindex("models/flags/flag3.md2");
 	else
 		player->s.modelindex3 = 0;
 }
@@ -1761,20 +2056,36 @@ void SetCTFStats(edict_t *ent)
 // AJ added LMCTF filename support
 	if (lmctf->value)
 		p1 = gi.imageindex ("redlion_i");
-	else p1 = gi.imageindex ("i_ctf1");
 // end AJ
+/*	else if (ttctf->value) //3tctf support
+	{
+		if (ent->client->resp.ctf_team == CTF_TEAM1)
+			p1 = gi.imageindex ("3tctfrs");
+		else
+			p1 = gi.imageindex ("3tctfr");
+	}
+*/
+	else p1 = gi.imageindex ("i_ctf1");
 	e = G_Find(NULL, FOFS(classname), "item_flag_team1");
 	if (e != NULL) {
 		if (e->solid == SOLID_NOT) {
 			int i;
 
 			// not at base
-			// check if on player
+			// check if on player, default to dropped
 // AJ added LMCTF filename support
 			if (lmctf->value)
-				p1 = gi.imageindex ("redflagdown"); // default to dropped
-			else p1 = gi.imageindex ("i_ctf1d"); // default to dropped
+				p1 = gi.imageindex ("redflagdown");
 // end AJ
+/*			else if (ttctf->value) //3tctf support
+			{
+				if (ent->client->resp.ctf_team == CTF_TEAM1)
+					p1 = gi.imageindex ("3tctfrds");
+				else
+					p1 = gi.imageindex ("3tctfrd");
+			}
+*/
+			else p1 = gi.imageindex ("i_ctf1d");
 			for (i = 1; i <= maxclients->value; i++)
 				if (g_edicts[i].inuse &&
 					g_edicts[i].client->pers.inventory[ITEM_INDEX(flag1_item)]) {
@@ -1782,36 +2093,70 @@ void SetCTFStats(edict_t *ent)
 // AJ added LMCTF filename support
 					if (lmctf->value)
 						p1 = gi.imageindex ("redflaggone");
-					else p1 = gi.imageindex ("i_ctf1t");
 // end AJ
+/*					else if (ttctf->value) //3tctf support
+					{
+						if (ent->client->resp.ctf_team == CTF_TEAM1)
+							p1 = gi.imageindex ("3tctfrts");
+						else
+							p1 = gi.imageindex ("3tctfrt");
+					}
+*/
+					else p1 = gi.imageindex ("i_ctf1t");
 					break;
 				}
-		} else if (e->spawnflags & DROPPED_ITEM)
-// AJ added LMCTF filename support
+		} else if (e->spawnflags & DROPPED_ITEM)// must be dropped
 		{
+// AJ added LMCTF filename support
+
 			if (lmctf->value)
-				p1 = gi.imageindex ("redflagdown"); // must be dropped
-			else p1 = gi.imageindex ("i_ctf1d"); // must be dropped
-		}
+				p1 = gi.imageindex ("redflagdown");
 // end AJ
+/*			else if (ttctf->value) //3tctf support
+			{
+				if (ent->client->resp.ctf_team == CTF_TEAM1)
+					p1 = gi.imageindex ("3tctfrds");
+				else
+					p1 = gi.imageindex ("3tctfrd");
+			}
+*/
+			else p1 = gi.imageindex ("i_ctf1d");
+		}
 	}
 // AJ added LMCTF filename support
 	if (lmctf->value)
 		p2 = gi.imageindex ("bluewolf_i");
-	else p2 = gi.imageindex ("i_ctf2");
 // end AJ
+/*	else if (ttctf->value) //3tctf support
+	{
+		if (ent->client->resp.ctf_team == CTF_TEAM2)
+			p1 = gi.imageindex ("3tctfbs");
+		else
+			p1 = gi.imageindex ("3tctfb");
+	}
+*/
+	else p2 = gi.imageindex ("i_ctf2");
 	e = G_Find(NULL, FOFS(classname), "item_flag_team2");
 	if (e != NULL) {
 		if (e->solid == SOLID_NOT) {
 			int i;
 
 			// not at base
-			// check if on player
+			// check if on player, default to dropped
 // AJ added LMCTF filename support
 			if (lmctf->value)
-				p2 = gi.imageindex ("blueflagdown"); // default to dropped
-			else p2 = gi.imageindex ("i_ctf2d"); // default to dropped
+				p2 = gi.imageindex ("blueflagdown"); 
 // end AJ
+/*			else if (ttctf->value) //3tctf support
+			{
+				if (ent->client->resp.ctf_team == CTF_TEAM2)
+					p1 = gi.imageindex ("3tctfbds");
+				else
+					p1 = gi.imageindex ("3tctfbd");
+			}
+*/
+			else p2 = gi.imageindex ("i_ctf2d"); // default to dropped
+
 			for (i = 1; i <= maxclients->value; i++)
 				if (g_edicts[i].inuse &&
 					g_edicts[i].client->pers.inventory[ITEM_INDEX(flag2_item)]) {
@@ -1819,45 +2164,74 @@ void SetCTFStats(edict_t *ent)
 // AJ added LMCTF filename support
 					if (lmctf->value)
 						p2 = gi.imageindex ("blueflaggone");
-					else p2 = gi.imageindex ("i_ctf2t");
 // end AJ
+/*					else if (ttctf->value) //3tctf support
+					{
+						if (ent->client->resp.ctf_team == CTF_TEAM2)
+							p1 = gi.imageindex ("3tctfbts");
+						else
+							p1 = gi.imageindex ("3tctfbt");
+					}
+*/
+					else p2 = gi.imageindex ("i_ctf2t");
+
 					break;
 				}
-		} else if (e->spawnflags & DROPPED_ITEM)
-// AJ added LMCTF filename support
+		} else if (e->spawnflags & DROPPED_ITEM) // must be dropped
 		{
+// AJ added LMCTF filename support
 			if (lmctf->value)
-				p2 = gi.imageindex ("blueflagdown"); // must be dropped
-			else p2 = gi.imageindex ("i_ctf2d"); // must be dropped
-		}
+				p2 = gi.imageindex ("blueflagdown");
 // end AJ
+/*			else if (ttctf->value) //3tctf support
+			{
+				if (ent->client->resp.ctf_team == CTF_TEAM2)
+					p1 = gi.imageindex ("3tctfbds");
+				else
+					p1 = gi.imageindex ("3tctfbd");
+			}
+*/
+			else p2 = gi.imageindex ("i_ctf2d");
+		}
+
 	}
 
 // AJ - add green team status tile
 	if (ttctf->value)
 	{
-		p3 = gi.imageindex ("3tctfg");
+		if (ent->client->resp.ctf_team == CTF_TEAM3)
+			p3 = gi.imageindex ("3tctfgs");
+		else
+			p3 = gi.imageindex ("3tctfg");
 		e = G_Find(NULL, FOFS(classname), "item_flag_team3");
 		if (e != NULL) 
 		{
 			if (e->solid == SOLID_NOT) 
 			{
 				int i;
-
 				// not at base
-				// check if on player
-				p3 = gi.imageindex ("3tctfgd"); // default to dropped
+				// check if on player, default to dropped
+				if (ent->client->resp.ctf_team == CTF_TEAM3)
+					p3 = gi.imageindex ("3tctfgds");
+				else
+					p3 = gi.imageindex ("3tctfgd"); 
 				for (i = 1; i <= maxclients->value; i++)
 					if (g_edicts[i].inuse &&
 						g_edicts[i].client->pers.inventory[ITEM_INDEX(flag3_item)]) 
 					{
 						// enemy has it
+						if (ent->client->resp.ctf_team == CTF_TEAM3)
+							p3 = gi.imageindex ("3tctfgts");
+						else
 							p3 = gi.imageindex ("3tctfgt");
 						break;
 					}
 			} 
 			else if (e->spawnflags & DROPPED_ITEM)
-				p3= gi.imageindex ("3tctfgd"); // must be dropped
+				if (ent->client->resp.ctf_team == CTF_TEAM3)
+					p3 = gi.imageindex ("3tctfgds");
+				else
+					p3 = gi.imageindex ("3tctfgd"); // must be dropped
 		}
 
 		ent->client->ps.stats[STAT_CTF_TEAM3_PIC] = p3;
@@ -1885,26 +2259,34 @@ void SetCTFStats(edict_t *ent)
 	ent->client->ps.stats[STAT_CTF_TEAM3_CAPS] = ctfgame.team3;
 
 	ent->client->ps.stats[STAT_CTF_FLAG_PIC] = 0;
-	if (ent->client->resp.ctf_team == CTF_TEAM1 &&
-		ent->client->pers.inventory[ITEM_INDEX(flag2_item)] &&
-		(level.framenum & 8))
+	if ((ent->client->resp.ctf_team == CTF_TEAM1 || ent->client->resp.ctf_team == CTF_TEAM3) &&
+		ent->client->pers.inventory[ITEM_INDEX(flag2_item)] && (level.framenum & 8))
 // AJ added LMCTF filename support
 	{
 		if (lmctf->value)
 			ent->client->ps.stats[STAT_CTF_FLAG_PIC] = gi.imageindex ("bluewolf_i");
+	//	else if (ttctf->value)
+	//		ent->client->ps.stats[STAT_CTF_FLAG_PIC]  = gi.imageindex ("3tctfb");
 		else ent->client->ps.stats[STAT_CTF_FLAG_PIC] = gi.imageindex ("i_ctf2");
 	}
 // end AJ
-	else if (ent->client->resp.ctf_team == CTF_TEAM2 &&
-		ent->client->pers.inventory[ITEM_INDEX(flag1_item)] &&
-		(level.framenum & 8))
+	else if ((ent->client->resp.ctf_team == CTF_TEAM2 || ent->client->resp.ctf_team == CTF_TEAM3)  &&
+		ent->client->pers.inventory[ITEM_INDEX(flag1_item)] && (level.framenum & 8))
 // AJ added LMCTF filename support
 	{
 		if (lmctf->value)
 			ent->client->ps.stats[STAT_CTF_FLAG_PIC] = gi.imageindex ("redlion_i");
+	//	else if (ttctf->value)
+	//		ent->client->ps.stats[STAT_CTF_FLAG_PIC]  = gi.imageindex ("3tctfr");
 		else ent->client->ps.stats[STAT_CTF_FLAG_PIC] = gi.imageindex ("i_ctf1");
 	}
 // end AJ
+	//ScarFace- here is the missing green flag icon!!!
+	else if ((ent->client->resp.ctf_team == CTF_TEAM1 || ent->client->resp.ctf_team == CTF_TEAM2)  &&
+		ent->client->pers.inventory[ITEM_INDEX(flag3_item)] && (level.framenum & 8))
+	{
+		ent->client->ps.stats[STAT_CTF_FLAG_PIC]  = gi.imageindex ("3tctfg");
+	}
 
 	ent->client->ps.stats[STAT_CTF_JOINED_TEAM1_PIC] = 0;
 	ent->client->ps.stats[STAT_CTF_JOINED_TEAM2_PIC] = 0;
@@ -2940,6 +3322,164 @@ void CTFDeadDropTech(edict_t *ent)
 	}
 }
 
+//ScarFace- this function counts the number of runes in circulation
+int TechCount (void)
+{
+	gitem_t	*tech;
+	edict_t	*cl_ent;
+	edict_t	*mapent = NULL;
+	int i, j;
+	int count = 0;
+
+	mapent = g_edicts+1; // skip the worldspawn
+	// cycle through all ents to find techs
+	for (i = 1; i < globals.num_edicts; i++, mapent++)
+	{
+		if (!mapent->classname)
+			continue;
+		if ( (!strcmp(mapent->classname, "item_tech1")) || (!strcmp(mapent->classname, "item_tech2"))
+			|| (!strcmp(mapent->classname, "item_tech3")) || (!strcmp(mapent->classname, "item_tech4"))
+			|| (!strcmp(mapent->classname, "item_tech5")) )
+			count++;
+	}
+	//cycle through all players to find techs
+	for (i = 0; i < game.maxclients; i++)
+	{
+		cl_ent = g_edicts + 1 + i;
+		if (cl_ent->inuse)
+		{
+			j = 0;
+			while (tnames[j])
+			{
+				if ((tech = FindItemByClassname(tnames[j])) != NULL &&
+					cl_ent->client->pers.inventory[ITEM_INDEX(tech)])
+					count++;
+				j++;
+			}
+		}
+	}
+	return count;
+}
+
+//ScarFace- a diagnostic function to display the number of runes in circulation
+void Cmd_RuneCount_f (edict_t *ent)
+{
+	int count;
+	count = TechCount();
+	gi.dprintf ("Number of runes in game: %d\n", count);
+}
+
+//ScarFace- spawn the additional runes
+void SpawnMoreTechs (int oldrunecount, int newrunecount, int numrunetypes)
+{
+	gitem_t	*tech;
+	edict_t	*spot;
+	int i, j;
+
+	//gi.dprintf ("Number of runes in loop: %d\n", numrunetypes);
+	i = oldrunecount % numrunetypes; //Spawn next rune in succession of the last one spawned
+	j = oldrunecount; //Start with count at old rune 
+	//gi.dprintf ("Rune number to start on: %d\n", (i+1));
+	while ( (j < numrunetypes) || ((j < rune_max->value) && (j < newrunecount)) )
+	{
+		while ( (tnames[i]) &&
+				((j < numrunetypes) || ((j < rune_max->value) && (j < newrunecount))) )
+		{
+			if (((tech = FindItemByClassname(tnames[i])) != NULL &&
+				 (spot = FindTechSpawn()) != NULL)
+				&& ((int)(rune_flags->value) & (0x1 << i)))
+			{
+				//gi.dprintf ("Spawning tech%d\n", (i+1));
+				SpawnTech(tech, spot);
+				j++;
+			}
+			i++;
+		}
+		i = 0;
+	}
+	//gi.dprintf ("Current number of runes in game: %d\n", j);
+}
+
+//ScarFace- remove some runes
+void RemoveTechs (int oldrunecount, int newrunecount, int numrunetypes)
+{
+	edict_t	*mapent = NULL;
+	int i, j, k;
+	int removed;
+
+	//gi.dprintf ("Number of runes in loop: %d\n", numrunetypes);
+	i = (oldrunecount % numrunetypes - 1) ; //Remove last rune spawned
+	if (i < 0)
+		i = 4;
+	j = oldrunecount;
+	//gi.dprintf ("Rune number to start removing on: %d\n", (i+1));
+	while ((tnames[i]) && (j > newrunecount) && (j > numrunetypes)) //leave at least 1 of each rune
+	{
+		if ((int)(rune_flags->value) & (0x1 << i)) //if this rune is allowed in the game
+		{
+			removed = 0; //flag to remove only one rune per pass
+			mapent = g_edicts+1; // skip the worldspawn
+			for (k = 1; k < globals.num_edicts; k++, mapent++)
+			{
+				if (!mapent->classname)
+					continue;
+				if (!strcmp(mapent->classname, tnames[i]))
+				{
+				//	gi.dprintf ("Removing tech%d\n", (i+1));
+					G_FreeEdict(mapent);
+					j--;
+					removed = 1;
+				}
+				if (removed == 1) //don't keep removing runes of this type
+					break;
+			}
+			//If we can't find this rune in map, wait until a player drops it instead of removing others
+			if (removed == 0) 
+				return;
+		}
+		i --;
+	}
+//	gi.dprintf ("Current number of runes in game: %d\n", j);
+}
+
+//ScarFace- this function checks to see if we need to spawn or remove runes
+void CheckNumRunes (void)
+{
+	edict_t	*cl_ent;
+	int i, j, numclients;
+	int newrunecount, numrunes, runediff;
+	int numrunetypes = 0;
+
+	//count number of rune types enabled
+	for (i = 0; i < 5; i++)
+		if ((int)(rune_flags->value) & (0x1 << i))
+			numrunetypes++;
+	
+	//count num. of clients
+	numclients = 0;
+	for (i = 0; i < game.maxclients; i++)
+	{
+		cl_ent = g_edicts + 1 + i;
+		if (cl_ent->inuse)
+			numclients++;
+	}
+
+	newrunecount = rune_perplayer->value * numclients;
+	if (newrunecount > rune_max->value) //cap at rune_max
+		newrunecount = rune_max->value;
+	numrunes = TechCount();
+	if (newrunecount > numrunes)
+	{
+		//gi.dprintf ("Number of runes to spawn: %d\n", newrunecount);
+		SpawnMoreTechs (numrunes, newrunecount, numrunetypes);
+	}
+	if ((newrunecount < numrunes) && (newrunecount > numrunetypes))
+	{
+	//	gi.dprintf ("Number of runes to spawn: %d\n", newrunecount);
+		RemoveTechs (numrunes, newrunecount, numrunetypes);
+	}
+}
+
 static void SpawnTech(gitem_t *item, edict_t *spot)
 {
 	edict_t	*ent;
@@ -3001,6 +3541,8 @@ static void SpawnTech(gitem_t *item, edict_t *spot)
 	}
 }
 
+//This function is called before any clients enter the game,
+//	so it can't determine how many runes to spawn based on player count
 static void SpawnTechs(edict_t *ent)
 {
 	gitem_t *tech;
@@ -3131,7 +3673,8 @@ void CTFApplyHasteSound(edict_t *ent)
 		tech = item_tech3;
 	if (tech && ent->client &&
 		ent->client->pers.inventory[ITEM_INDEX(tech)] &&
-		ent->client->ctf_techsndtime < level.time) {
+		ent->client->ctf_techsndtime < level.time) 
+	{
 		ent->client->ctf_techsndtime = level.time + 1;
 // AJ - change constant filename to cvar
 		gi.sound(ent, CHAN_VOICE, gi.soundindex(rune_haste_sound->string), volume, ATTN_NORM, 0);

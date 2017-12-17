@@ -83,15 +83,20 @@
 
 int	aborted_fire;
 
-//int	is_quad;
+qboolean	is_quad;
+int	is_double;
+int is_quadfire;
 
 void	bot_FireWeapon(edict_t	*self)
 {
 	if (!self->enemy)
 		return;
 
-	// set Quad flag
+	// set Quad/double flag
+	P_DamageModifier(self);	
 	is_quad = (self->client->quad_framenum > level.framenum);
+	is_double = (self->client->double_framenum > level.framenum);
+	is_quadfire = (self->client->quadfire_framenum > level.framenum);
 
 	aborted_fire = false;
 	self->bot_fire(self);
@@ -99,8 +104,14 @@ void	bot_FireWeapon(edict_t	*self)
 	if (!aborted_fire)
 	{
 		if (!CTFApplyStrengthSound(self))
+		{
 			if (is_quad)
 				gi.sound(self, CHAN_ITEM, gi.soundindex("items/damage3.wav"), 1, ATTN_NORM, 0);
+			if (is_double)
+				gi.sound(self, CHAN_ITEM, gi.soundindex("items/ddamage3.wav"), 1, ATTN_NORM, 0);
+			if (is_quadfire)
+				gi.sound(self, CHAN_ITEM, gi.soundindex("items/quadfire3.wav"), 1, ATTN_NORM, 0);
+		}
 
 		self->last_fire = level.time;
 
@@ -121,7 +132,8 @@ void	bot_FireWeapon(edict_t	*self)
 //			if (!ent->bot_client)
 //				gi.centerprintf(ent, "End of safety.");
 			self->client->ps.stats[STAT_LITHIUM_MODE] = 0;
-			self->s.effects &= 0xF7FFFFFF; // clear the yellow shell
+//			self->s.effects &= 0xF7FFFFFF; // clear the yellow shell
+			self->s.effects &= EF_HALF_DAMAGE; //ScarFace- clear green shell
 		}
 // end AJ
 
@@ -321,6 +333,7 @@ nojump:
 		self->sight_enemy_time = level.time;
 
 		// abort chasing a RL welding human, with enough health
+		if (self->enemy->client) //ScarFace
 		if (!self->enemy->bot_client && (self->enemy->client->pers.weapon == item_rocketlauncher) && !CarryingFlag(self->enemy)
 			&& ((self->enemy->health > 25) || (self->bot_fire == botBlaster || self->bot_fire == botShotgun)))
 		{	// abort the attack
@@ -345,6 +358,8 @@ void botBlaster (edict_t *self)
 	vec3_t	forward, right, ofs;
 	float	dist, tf;
 	int	damage;
+	int		effect;
+
 
 	AngleVectors (self->s.angles, forward, right, NULL);
 	G_ProjectSource (self->s.origin, tv(8,8,self->viewheight-8), forward, right, start);
@@ -362,6 +377,15 @@ void botBlaster (edict_t *self)
 			VectorMA (self->enemy->s.origin, dist * (1/1000), self->enemy->velocity, target);
 			target[2] += self->enemy->viewheight - 8;
 		}
+		else if (!self->enemy->client) //ScarFace
+		{
+			if ( (!strcmp(self->enemy->classname, "doppleganger")) && (self->enemy->health > 0)
+				&& (skill->value > 1) && (dist > 64) )
+			{
+				VectorMA (self->enemy->s.origin, dist * (1/1000), self->enemy->velocity, target);
+				target[2] += self->enemy->viewheight - 8;
+			}
+		}
 		else
 		{
 			VectorCopy (self->enemy->s.origin, target);
@@ -374,6 +398,11 @@ void botBlaster (edict_t *self)
 			tf *= (float) ((5.0 - self->bot_stats->accuracy) / 5.0) * 2;
 			if (self->enemy->client && !self->enemy->bot_client)
 				tf *= 0.5 + (VectorLength(self->enemy->velocity)/600);
+
+			else if (!self->enemy->client) //ScarFace
+				if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+					tf *= 0.5 + (VectorLength(self->enemy->velocity)/600);
+
 			VectorAdd(target, tv(crandom() * tf, crandom() * tf, crandom() * tf * 0.2), target);
 		}
 
@@ -393,9 +422,19 @@ void botBlaster (edict_t *self)
 	damage = bot_blaster_damage->value;
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
+
+	//ScarFace- different blaster types
+	if ((blaster_type->value == 2) || (blaster_type->value == 4)) //green
+		effect = EF_BLASTER;
+	else if (blaster_type->value == 3) //blue
+		effect = EF_BLUEHYPERBLASTER;
+	else //standard yellow
+		effect = EF_BLASTER;
 
 // AJ changed constant 1000 for cvar bot_blaster_speed->value
-	monster_fire_blaster (self, start, forward, damage, bot_blaster_speed->value, MZ_BLASTER, EF_BLASTER);
+	monster_fire_blaster (self, start, forward, damage, bot_blaster_speed->value, MZ_BLASTER, effect);
 
 }
 
@@ -444,6 +483,11 @@ void botMachineGun (edict_t *self)
 				tf *= (float) ((5.0 - self->bot_stats->accuracy) / 5.0) * 2;
 				if (self->enemy->client && !self->enemy->bot_client)
 					tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
+				else if (!self->enemy->client) //ScarFace
+					if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+						tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
 				VectorAdd(target, tv(crandom() * tf, crandom() * tf, crandom() * tf * 0.1), target);
 			}
 
@@ -474,7 +518,8 @@ void botMachineGun (edict_t *self)
 	damage = bot_machinegun_damage->value;
 	if (is_quad)
 		damage *= 4;
-
+	if (is_double)	//ScarFace
+		damage *= 2;
 // AJ changed constants to cvars (hspread, vspread)
 	monster_fire_bullet (self, start, forward, damage, 4, bot_machinegun_hspread->value, bot_machinegun_vspread->value, MZ2_ACTOR_MACHINEGUN_1, MOD_MACHINEGUN);
 
@@ -516,7 +561,6 @@ void botShotgun (edict_t *self)
 			{	// trail the player's velocity
 				VectorMA(target, -0.2, self->enemy->velocity, target);
 			}
-
 			target[2] += self->enemy->viewheight - 8;
 		}
 		else
@@ -531,6 +575,11 @@ void botShotgun (edict_t *self)
 			tf *= (float) ((5.0 - self->bot_stats->accuracy) / 5.0) * 2;
 			if (self->enemy->client && !self->enemy->bot_client)
 				tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
+			else if (!self->enemy->client) //ScarFace
+				if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+					tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
 			VectorAdd(target, tv(crandom() * tf, crandom() * tf, crandom() * tf * 0.2), target);
 		}
 
@@ -552,6 +601,8 @@ void botShotgun (edict_t *self)
 	damage = bot_shotgun_damage->value;
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 // AJ changed constants to cvar's (hspread, vspread, count)
 	monster_fire_shotgun (self, start, forward, damage, 4, bot_shotgun_vspread->value, bot_shotgun_vspread->value, bot_shotgun_count->value, MZ_SHOTGUN, MOD_SHOTGUN);
@@ -606,6 +657,11 @@ void botSuperShotgun (edict_t *self)
 			tf *= (float) ((5.0 - self->bot_stats->accuracy) / 5.0) * 2;
 			if (self->enemy->client && !self->enemy->bot_client)
 				tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
+			else if (!self->enemy->client) //ScarFace
+				if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+					tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
 			VectorAdd(target, tv(crandom() * tf, crandom() * tf, crandom() * tf * 0.2), target);
 		}
 
@@ -627,6 +683,8 @@ void botSuperShotgun (edict_t *self)
 	damage = bot_sshotgun_damage->value; // OPTIMIZE: increase damage, decrease number of bullets
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 	vectoangles(forward, angles);
 
@@ -695,6 +753,10 @@ void botChaingun (edict_t *self)
 				if (self->enemy->client && !self->enemy->bot_client)
 					tf *= (1 - (VectorLength(self->enemy->velocity)/600));
 
+				else if (!self->enemy->client) //ScarFace
+					if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+						tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
 				if (tf > 0)
 					VectorAdd(target, tv(crandom() * tf, crandom() * tf, crandom() * tf * 0.2), target);
 			}
@@ -744,6 +806,8 @@ void botChaingun (edict_t *self)
 
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 //	for (i=0 ; i<shots ; i++)
 //	{
@@ -805,6 +869,10 @@ void botRailgun (edict_t *self)
 
 			if (self->enemy->client && !self->enemy->bot_client)
 				tf = (VectorLength(self->enemy->velocity) / 300) * 100;
+
+			else if (!self->enemy->client) //ScarFace
+				if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+						tf = (VectorLength(self->enemy->velocity) / 300) * 100;
 		}
 		else
 		{
@@ -820,6 +888,10 @@ void botRailgun (edict_t *self)
 			tf *= (float) ((5.0 - self->bot_stats->accuracy) / 5.0) * 2;
 			if (self->enemy->client && !self->enemy->bot_client)
 				tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
+			else if (!self->enemy->client) //ScarFace
+				if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+					tf *= (1 - (VectorLength(self->enemy->velocity)/600));
 		}
 
 		if (tf > 0)
@@ -845,6 +917,8 @@ void botRailgun (edict_t *self)
 
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 	fire_rail (self, start, forward, damage, kick);
 	self->client->pers.inventory[self->client->ammo_index]--;
@@ -893,7 +967,9 @@ void botRocketLauncher (edict_t *self)
 	{
 		dist = entdist(self, self->enemy);
 
-		if ((skill->value > 1) && (self->enemy->health > 0) && (self->enemy->client && !self->enemy->bot_client) && (dist > 64))
+		if ((skill->value > 1) && (self->enemy->health > 0) && ( (self->enemy->client && !self->enemy->bot_client)
+				|| (!self->enemy->client && !strcmp(self->enemy->classname, "doppleganger") && !self->enemy->bot_client) )
+			&& (dist > 64))
 		{
 			VectorCopy(self->enemy->velocity, vel);
 			if (vel[2] > 0)
@@ -941,6 +1017,11 @@ void botRocketLauncher (edict_t *self)
 			tf *= (float) ((5.0 - self->bot_stats->accuracy) / 5.0) * 2;
 			if (self->enemy->client && !self->enemy->bot_client)
 				tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
+			else if (!self->enemy->client) //ScarFace
+				if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+					tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
 			VectorAdd(target, tv(crandom() * tf, crandom() * tf, crandom() * tf * 0.2), target);
 		}
 
@@ -967,7 +1048,16 @@ void botRocketLauncher (edict_t *self)
 		VectorMA (self->enemy->s.origin, (float) dist / 650, self->enemy->velocity, self->enemy->s.origin);
 		gi.linkentity(self->enemy);
 	}
-
+	else if (!self->enemy->client) //ScarFace
+	{
+		if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+		{
+			// move the enemy to the predicted position
+			VectorCopy(self->enemy->s.origin, oldorg);
+			VectorMA (self->enemy->s.origin, (float) dist / 650, self->enemy->velocity, self->enemy->s.origin);
+			gi.linkentity(self->enemy);
+		}
+	}
 	VectorScale(forward, 130, end_trace);
 	VectorAdd(start, end_trace, end_trace);
 	trace = gi.trace(start, tv(-12,-12,-4), tv(12,12,4), end_trace, self, MASK_PLAYERSOLID);
@@ -978,7 +1068,15 @@ void botRocketLauncher (edict_t *self)
 		VectorCopy(oldorg, self->enemy->s.origin);
 		gi.linkentity(self->enemy);
 	}
-
+	else if (!self->enemy->client) //ScarFace
+	{
+		if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+		{
+			// move the enemy back to their correct position
+			VectorCopy(oldorg, self->enemy->s.origin);
+			gi.linkentity(self->enemy);
+		}
+	}
 	if (	(trace.fraction < 1)
 		&&	(	(self->health > 15)
 			 ||	(!trace.ent)))		// dangerous situation, only fire if almost dead and obstacle is another player
@@ -996,6 +1094,8 @@ void botRocketLauncher (edict_t *self)
 
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 // AJ changed constant 650 for cvar bot_rocket_speed->value
 	fire_rocket (self, start, forward, damage, bot_rocket_speed->value, damage_radius, radius_damage);
@@ -1045,6 +1145,14 @@ void botGrenadeLauncher (edict_t *self)
 			VectorMA (self->enemy->s.origin, dist / 550, self->enemy->velocity, target);
 			target[2] += self->enemy->viewheight - 8;
 		}
+		else if (!self->enemy->client) //ScarFace
+		{
+			if ( (!strcmp(self->enemy->classname, "doppleganger")) && (self->enemy->health > 0) && (!self->enemy->bot_client) && (dist > 64) )
+			{
+				VectorMA (self->enemy->s.origin, dist / 550, self->enemy->velocity, target);
+				target[2] += self->enemy->viewheight - 8;
+			}
+		}
 		else
 		{
 			VectorCopy (self->enemy->s.origin, target);
@@ -1057,6 +1165,11 @@ void botGrenadeLauncher (edict_t *self)
 			tf *= (float) ((5.0 - self->bot_stats->accuracy) / 5.0) * 2;
 			if (self->enemy->client && !self->enemy->bot_client)
 				tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
+			else if (!self->enemy->client) //ScarFace
+				if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+					tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
 			VectorAdd(target, tv(crandom() * tf, crandom() * tf, crandom() * tf * 0.2), target);
 		}
 
@@ -1076,6 +1189,8 @@ void botGrenadeLauncher (edict_t *self)
 
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 	vectoangles(forward, angles);
 
@@ -1113,6 +1228,8 @@ void botHyperblaster (edict_t *self)
 	damage = bot_hyperblaster_damage->value;
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 	AngleVectors (self->s.angles, forward, right, NULL);
 	G_ProjectSource (self->s.origin, tv(8,8,self->viewheight-8), forward, right, start);
@@ -1130,6 +1247,14 @@ void botHyperblaster (edict_t *self)
 			VectorMA (self->enemy->s.origin, dist/1000, self->enemy->velocity, target);
 			target[2] += self->enemy->viewheight - 8;
 		}
+		else if (!self->enemy->client) //ScarFace
+		{
+			if ( (!strcmp(self->enemy->classname, "doppleganger")) && (skill->value > 1) && (self->enemy->health > 0) && (dist > 64) )
+			{
+				VectorMA (self->enemy->s.origin, dist/1000, self->enemy->velocity, target);
+				target[2] += self->enemy->viewheight - 8;
+			}
+		}
 		else
 		{
 			VectorCopy (self->enemy->s.origin, target);
@@ -1144,7 +1269,12 @@ void botHyperblaster (edict_t *self)
 // AJ added the "1 -"... this resolves the hyperblaster accuracy issue
 //				tf *= (VectorLength(self->enemy->velocity)/600);
 				tf *= (1 - (VectorLength(self->enemy->velocity)/600));
-				VectorAdd(target, tv(crandom() * tf, crandom() * tf, crandom() * tf * 0.2), target);
+
+			else if (!self->enemy->client) //ScarFace
+				if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+					tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
+			VectorAdd(target, tv(crandom() * tf, crandom() * tf, crandom() * tf * 0.2), target);
 		}
 
 		VectorSubtract (target, start, forward);
@@ -1163,7 +1293,14 @@ void botHyperblaster (edict_t *self)
 
 
 	if ((random() * 3) < 1)
+	{	//ScarFace- different blaster types
+	if (blaster_type->value == 2) //green
 		effect = EF_HYPERBLASTER;
+	else if ((blaster_type->value == 3) || (blaster_type->value == 4)) //blue
+		effect = EF_BLUEHYPERBLASTER;
+	else //standard yellow
+		effect = EF_HYPERBLASTER;
+	}
 	else
 		effect = 0;
 
@@ -1174,7 +1311,16 @@ void botHyperblaster (edict_t *self)
 	// send muzzle flash
 	gi.WriteByte (svc_muzzleflash);
 	gi.WriteShort (self-g_edicts);
-	gi.WriteByte (MZ_HYPERBLASTER);
+
+	//ScarFace- different blaster types
+	if (blaster_type->value == 2) //green
+		gi.WriteByte (MZ_HYPERBLASTER);
+//		gi.WriteByte (MZ2_DAEDALUS_BLASTER);
+	else if ((blaster_type->value == 3) || (blaster_type->value == 4)) //blue
+		gi.WriteByte (MZ_BLUEHYPERBLASTER);
+	else //standard yellow
+		gi.WriteByte (MZ_HYPERBLASTER);
+	
 	gi.multicast (self->s.origin, MULTICAST_PVS);
 
 }
@@ -1193,6 +1339,8 @@ void botBFG (edict_t *self)
 	damage_radius = bot_bfg_radius->value;
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 	AngleVectors (self->s.angles, forward, right, NULL);
 	G_ProjectSource (self->s.origin, tv(8,8,self->viewheight-8), forward, right, start);
@@ -1214,6 +1362,16 @@ void botBFG (edict_t *self)
 			if ((dist > 200) && self->enemy->groundentity)	// aim towards ground
 				target[2] -= (4 * self->bot_stats->combat);
 		}
+		else if (!self->enemy->client) //ScarFace
+		{
+			if ( (!strcmp(self->enemy->classname, "doppleganger")) && (self->enemy->health > 0) && !self->enemy->bot_client && (dist > 64) )
+			{
+				VectorMA (self->enemy->s.origin, entdist(self, self->enemy) * (1/550), self->enemy->velocity, target);
+				target[2] += self->enemy->viewheight - 8;
+				if ((dist > 200) && self->enemy->groundentity)	// aim towards ground
+					target[2] -= (4 * self->bot_stats->combat);
+			}
+		}
 		else
 		{
 			VectorCopy (self->enemy->s.origin, target);
@@ -1226,6 +1384,11 @@ void botBFG (edict_t *self)
 			tf *= (float) ((5.0 - self->bot_stats->accuracy) / 5.0) * 2;
 			if (self->enemy->client && !self->enemy->bot_client)
 				tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
+			else if (!self->enemy->client) //ScarFace
+				if ( (!strcmp(self->enemy->classname, "doppleganger")) && !self->enemy->bot_client)
+					tf *= (1 - (VectorLength(self->enemy->velocity)/600));
+
 			VectorAdd(target, tv(crandom() * tf, crandom() * tf, crandom() * tf * 0.2), target);
 		}
 
@@ -1310,6 +1473,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = self->bot_stats->fav_weapon->tag;
 		client->pers.weapon = client->newweapon;
@@ -1335,6 +1500,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 
 			if (CTFApplyHaste(self))
 				self->fire_interval *= 0.5;
+			if (client->quadfire_framenum > level.framenum)
+				self->fire_interval *= 0.5;
 
 			client->ammo_index = ITEM_INDEX(item_cells);
 			client->pers.weapon = client->newweapon;
@@ -1359,6 +1526,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_bullets);
 		client->pers.weapon = client->newweapon;
@@ -1379,6 +1548,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 		self->fire_interval = FIRE_INTERVAL_HYPERBLASTER;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_cells);
@@ -1401,6 +1572,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_rockets);
 		client->pers.weapon = client->newweapon;
@@ -1422,6 +1595,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_slugs);
 		client->pers.weapon = client->newweapon;
@@ -1442,6 +1617,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 		self->fire_interval = FIRE_INTERVAL_MACHINEGUN;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_bullets);
@@ -1468,6 +1645,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 
 			if (CTFApplyHaste(self))
 				self->fire_interval *= 0.5;
+			if (client->quadfire_framenum > level.framenum)
+				self->fire_interval *= 0.5;
 
 			client->ammo_index = ITEM_INDEX(item_cells);
 			client->pers.weapon = client->newweapon;
@@ -1491,6 +1670,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_shells);
 		client->pers.weapon = client->newweapon;
@@ -1512,6 +1693,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_grenades);
 		client->pers.weapon = client->newweapon;
@@ -1532,6 +1715,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 		self->fire_interval = FIRE_INTERVAL_SHOTGUN;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_shells);
@@ -1555,6 +1740,8 @@ botDebugPrint("%s picked up favourite weapon\n", self->client->pers.netname);
 		self->fire_interval = FIRE_INTERVAL_BLASTER;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = 0;
@@ -1749,6 +1936,8 @@ void	botPickBestCloseWeapon(edict_t *self)
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_bullets);
 		client->pers.weapon = client->newweapon;
@@ -1769,6 +1958,8 @@ void	botPickBestCloseWeapon(edict_t *self)
 		self->fire_interval = FIRE_INTERVAL_SSHOTGUN;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_shells);
@@ -1791,6 +1982,8 @@ void	botPickBestCloseWeapon(edict_t *self)
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_cells);
 		client->pers.weapon = client->newweapon;
@@ -1812,6 +2005,8 @@ void	botPickBestCloseWeapon(edict_t *self)
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_bullets);
 		client->pers.weapon = client->newweapon;
@@ -1832,6 +2027,8 @@ void	botPickBestCloseWeapon(edict_t *self)
 		self->fire_interval = FIRE_INTERVAL_BFG;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_cells);
@@ -1855,6 +2052,8 @@ void	botPickBestCloseWeapon(edict_t *self)
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_slugs);
 		client->pers.weapon = client->newweapon;
@@ -1875,6 +2074,8 @@ void	botPickBestCloseWeapon(edict_t *self)
 		self->fire_interval = FIRE_INTERVAL_GRENADELAUNCHER;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_grenades);
@@ -1897,6 +2098,8 @@ void	botPickBestCloseWeapon(edict_t *self)
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_shells);
 		client->pers.weapon = client->newweapon;
@@ -1917,6 +2120,8 @@ void	botPickBestCloseWeapon(edict_t *self)
 		self->fire_interval = FIRE_INTERVAL_ROCKETLAUNCHER;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_rockets);
@@ -1940,6 +2145,8 @@ void	botPickBestCloseWeapon(edict_t *self)
 		self->fire_interval = FIRE_INTERVAL_BLASTER;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = 0;
@@ -1986,6 +2193,8 @@ void	botPickBestFarWeapon(edict_t *self)
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_bullets);
 		client->pers.weapon = client->newweapon;
@@ -2007,6 +2216,8 @@ void	botPickBestFarWeapon(edict_t *self)
 		self->fire_interval = FIRE_INTERVAL_RAILGUN;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_slugs);
@@ -2030,6 +2241,8 @@ void	botPickBestFarWeapon(edict_t *self)
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_bullets);
 		client->pers.weapon = client->newweapon;
@@ -2051,6 +2264,8 @@ void	botPickBestFarWeapon(edict_t *self)
 		self->fire_interval = FIRE_INTERVAL_HYPERBLASTER;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_cells);
@@ -2074,6 +2289,8 @@ void	botPickBestFarWeapon(edict_t *self)
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_cells);
 		client->pers.weapon = client->newweapon;
@@ -2095,6 +2312,8 @@ void	botPickBestFarWeapon(edict_t *self)
 		self->fire_interval = FIRE_INTERVAL_ROCKETLAUNCHER;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_rockets);
@@ -2118,6 +2337,8 @@ void	botPickBestFarWeapon(edict_t *self)
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_shells);
 		client->pers.weapon = client->newweapon;
@@ -2140,6 +2361,8 @@ void	botPickBestFarWeapon(edict_t *self)
 
 		if (CTFApplyHaste(self))
 			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
+			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_shells);
 		client->pers.weapon = client->newweapon;
@@ -2161,6 +2384,8 @@ void	botPickBestFarWeapon(edict_t *self)
 		self->fire_interval = FIRE_INTERVAL_GRENADELAUNCHER;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = ITEM_INDEX(item_grenades);
@@ -2185,6 +2410,8 @@ void	botPickBestFarWeapon(edict_t *self)
 		self->fire_interval = FIRE_INTERVAL_BLASTER;
 
 		if (CTFApplyHaste(self))
+			self->fire_interval *= 0.5;
+		if (client->quadfire_framenum > level.framenum)
 			self->fire_interval *= 0.5;
 
 		client->ammo_index = 0;

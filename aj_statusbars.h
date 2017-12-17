@@ -7,9 +7,11 @@ extern char *lithium_statusbar;
 #define	STAT_LITHIUM_PLACE		30
 #define STAT_LITHIUM_RUNE		31
 #define	STAT_LITHIUM_MODE		16
-#define STAT_CTF_TEAM3_HEADER	STAT_LITHIUM_PLAYERS
-#define	STAT_CTF_TEAM3_CAPS		STAT_LITHIUM_PLACE
-#define STAT_CTF_TEAM3_PIC		STAT_LITHIUM_FPH
+
+#define STAT_CTF_TEAM3_PIC		28
+#define STAT_CTF_TEAM3_HEADER		29
+#define	STAT_CTF_TEAM3_CAPS	30
+#define STAT_CTF_JOINED_TEAM3_PIC 	31
 
 #define CS_TECH1	CS_GENERAL
 #define CS_TECH2	CS_TECH1+1
@@ -23,6 +25,9 @@ extern char *lithium_statusbar;
 
 void lithium_updatestats(edict_t *client);
 void aj_choosebar(void);
+int getammocount (edict_t *ent, int index);
+int getammoicon (int index);
+void sortammo (edict_t *ent, int table2 [6][2]);
 
 
 extern	cvar_t	*def_hud;            // sets default client HUD

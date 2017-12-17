@@ -4,7 +4,6 @@
 #include "aj_statusbars.h"
 
 #define EF_YELLOWSHELL 0x08000000;
-
 void lithium_runecolour(gitem_t *item, edict_t *ent)
 {
 	ent->s.renderfx = RF_GLOW;
@@ -40,13 +39,12 @@ void lithium_runecolour(gitem_t *item, edict_t *ent)
 		ent->s.renderfx = RF_SHELL_RED | RF_SHELL_BLUE; 
 	}
 
-
 }
 
-char *lmctf_tech1_icon="resist", 
-     *lmctf_tech2_icon="strength", 
-	 *lmctf_tech3_icon="haste",
-	 *lmctf_tech4_icon="regen",
+char *lmctf_tech1_icon="a_resist",  //ScarFace- fixed names
+     *lmctf_tech2_icon="a_strength", 
+	 *lmctf_tech3_icon="a_haste",
+	 *lmctf_tech4_icon="a_regen",
 	 *lmctf_tech5_icon="\0";
 char *lithium_tech_icon="k_pyramid";
 
@@ -66,7 +64,7 @@ void lithium_setuprunes(void)
 		item->pickup_name = rune_resist_name->string; 
 		if (lmctf->value)
 			item->icon = lmctf_tech1_icon;
-		if (use_lithiumrunes->value)
+		/*else*/ if (use_lithiumrunes->value) //ScarFace- added else for always using LMCTF icons in LMCTF mode
 			item->icon = rune_resist_icon->string;
 
 		n=rune_resist_shortname->string;
@@ -83,7 +81,7 @@ void lithium_setuprunes(void)
 	{
 		if (lmctf->value)
 			item->icon = lmctf_tech2_icon;
-		if (use_lithiumrunes->value)
+		/*else*/ if (use_lithiumrunes->value) //ScarFace- added else for always using LMCTF icons in LMCTF mode
 			item->icon = rune_strength_icon->string;
 		
 		item->world_model = rune_strength_mdl->string;
@@ -102,7 +100,7 @@ void lithium_setuprunes(void)
 	{
 		if (lmctf->value)
 			item->icon = lmctf_tech3_icon;
-		if (use_lithiumrunes->value)
+		/*else*/ if (use_lithiumrunes->value) //ScarFace- added else for always using LMCTF icons in LMCTF mode
 			item->icon = rune_haste_icon->string;
 
 		item->world_model = rune_haste_mdl->string; 
@@ -122,7 +120,7 @@ void lithium_setuprunes(void)
 	{
 		if (lmctf->value)
 			item->icon = lmctf_tech4_icon;
-		if (use_lithiumrunes->value)
+		/*else*/ if (use_lithiumrunes->value) //ScarFace- added else for always using LMCTF icons in LMCTF mode
 			item->icon = rune_regen_icon->string;
 
 		item->world_model = rune_regen_mdl->string;
@@ -142,7 +140,7 @@ void lithium_setuprunes(void)
 	{
 		if (lmctf->value)
 			item->icon = lmctf_tech5_icon;
-		if (use_lithiumrunes->value)
+		if (use_lithiumrunes->value) //LMCTF has no vampire rune
 			item->icon = rune_vampire_icon->string;
 
 		item->world_model = rune_vampire_mdl->string;

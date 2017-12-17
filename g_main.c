@@ -4,6 +4,7 @@
 #include "bot_procs.h"
 #include "g_map_mod.h"
 #include "p_trail.h"
+#include "aj_runes.h" // AJ
 ///Q2 Camera Begin
 #include "camclient.h"
 ///Q2 Camera End
@@ -92,6 +93,14 @@ cvar_t	*ctf_humanonly_teams; // ~JLH
 cvar_t	*grapple;
 
 cvar_t	*view_weapons;
+
+//ROGUE cvars
+cvar_t	*g_showlogic;
+cvar_t	*gamerules;
+cvar_t	*huntercam;
+cvar_t	*strong_mines;
+cvar_t	*randomrespawn;
+//ROGUE
 
 void SpawnEntities (char *mapname, char *entities, char *spawnpoint);
 void ClientThink (edict_t *ent, usercmd_t *cmd);
@@ -596,19 +605,24 @@ static qboolean enforce_ctf_special_teams()
 							{
 								if ( force_team == CTF_TEAM1 ) // switch them to the other team
 									CTFJoinTeam( players[i], CTF_TEAM2 );
-								else
+								else if ((force_team == CTF_TEAM2) && (ttctf->value))
+									CTFJoinTeam( players[i], CTF_TEAM3 );
+								else if (force_team == CTF_TEAM2)
 									CTFJoinTeam( players[i], CTF_TEAM1 );
+								else 
+									CTFJoinTeam( players[i], CTF_TEAM1 );
+						
 								return TRUE; // we need to restart the count again
 							}
 				}
 			}
-			else if ( iTeam1Humans == 0 && iTeam2Humans == 0 )
+			else if ( iTeam1Humans == 0 && iTeam2Humans == 0 && iTeam3Humans == 0 )
 			{
-				iTeam1NeedCount = iTeam2NeedCount = 0;	// no humans in game no playing!
+				iTeam1NeedCount = iTeam2NeedCount = iTeam3Humans = 0;	// no humans in game no playing!
 				force_team = CTF_NOTEAM;
 			}
 			else
-				if ( iTeam1Humans == 0 || iTeam2Humans == 0 )
+				if ( iTeam1Humans == 0 || iTeam2Humans == 0 || iTeam1Humans == 0 )
 				{
 					if ( iTeam1Humans == 0 ) // no humans on team 1
 					{
@@ -616,27 +630,52 @@ static qboolean enforce_ctf_special_teams()
 						iTeam1NeedCount = (int) ( (double) iTeam2Humans * dSpecialTeams );
 						// if human only then don't allow bot to be created in Team2
 						if ( bHumanOnly )
+						{
 							iTeam2NeedCount = iTeam2Count;
+							if (ttctf->value)
+								iTeam3NeedCount = iTeam3Count;
+						}
 						// Adjust BOT if multiplier is >1 and <2 you could have 1.5 bots per teams
 						if ( iTeam1NeedCount == 1 && ( dSpecialTeams > 1 && dSpecialTeams < 2 ) )
 							iTeam1NeedCount++;
 						// Range check this to make sure we are not over doing it
-						if ( iTeam1NeedCount + iTeam2Count > iMaxPlayers )
-							iTeam1NeedCount = iMaxPlayers - iTeam2Count;
+						if ( iTeam1NeedCount + iTeam2Count + iTeam3Count> iMaxPlayers )
+							iTeam1NeedCount = iMaxPlayers - iTeam2Count - iTeam3Count;
 					}
-					else
+					else if ( iTeam2Humans == 0 ) // no humans on team 2
 					{	// no humans on team 2
 						force_team = CTF_TEAM2;
-						iTeam2NeedCount = (int) ( (double) iTeam1Humans * dSpecialTeams );
+						iTeam2NeedCount = (int) ( (double) iTeam3Humans * dSpecialTeams );
 						// if human only then don't allow bot to be created in Team1
 						if ( bHumanOnly )
-							iTeam1NeedCount = iTeam1Count;
+						{
+							iTeam1NeedCount = iTeam1Count;							if (ttctf->value)
+							if (ttctf->value)
+								iTeam3NeedCount = iTeam3Count;
+						}
 						// Adjust BOT if multiplier is >1 and <2 you could have 1.5 bots per team
 						if ( iTeam2NeedCount == 1 && ( dSpecialTeams > 1 && dSpecialTeams < 2 ) )
 							iTeam2NeedCount++;
 						// Range check this to make sure we are not over doing it
-						if ( iTeam2NeedCount + iTeam1Count > iMaxPlayers )
-							iTeam2NeedCount = iMaxPlayers - iTeam1Count;
+						if ( iTeam2NeedCount + iTeam1Count + iTeam3Count> iMaxPlayers )
+							iTeam2NeedCount = iMaxPlayers - iTeam1Count - iTeam3Count;
+					}
+					else if (ttctf->value)
+					{	// no humans on team 3
+						force_team = CTF_TEAM3;
+						iTeam3NeedCount = (int) ( (double) iTeam1Humans * dSpecialTeams );
+						// if human only then don't allow bot to be created in Team1
+						if ( bHumanOnly )
+						{
+							iTeam1NeedCount = iTeam1Count;
+							iTeam2NeedCount = iTeam2Count;
+						}
+						// Adjust BOT if multiplier is >1 and <2 you could have 1.5 bots per team
+						if ( iTeam3NeedCount == 1 && ( dSpecialTeams > 1 && dSpecialTeams < 2 ) )
+							iTeam3NeedCount++;
+						// Range check this to make sure we are not over doing it
+						if ( iTeam3NeedCount + iTeam1Count + iTeam2Count> iMaxPlayers )
+							iTeam3NeedCount = iMaxPlayers - iTeam1Count - iTeam2Count;
 					}
 				}
 			// Let add bots to team 1 if necessary
@@ -1161,6 +1200,12 @@ no_spawnbots:
 		ExitLevel ();
 		return;
 	}
+
+//ScarFace- check number of runes to see if any more need to be spawned 
+//I couldn't think of anywhere else to put this
+	if (use_runes->value)
+		CheckNumRunes ();
+//End ScarFace
 
 	//
 	// treat each object in turn

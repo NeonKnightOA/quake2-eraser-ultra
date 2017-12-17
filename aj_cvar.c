@@ -19,6 +19,13 @@ cvar_t	*def_hud;            // sets default client HUD
 //                              0 = none, 1 = normal, 2 = lithium, 3 = ammo
 cvar_t	*def_scores;         // sets default client scoreboard layout
 //                                   0 = old, 1 = by frags, 2 = by FPH
+cvar_t	*mega_gibs;			 // whether to spawn extra gibs, default to 0
+cvar_t	*am_pod_bounces;  //number of bounces for antimatter pod
+cvar_t	*am_pod_mdl;
+
+cvar_t	*ionripper_extra_sounds;
+
+cvar_t	*player_gib_health;  //when to gib
 cvar_t	*fall_damagemod;     // fall damage modifier (fall damage multiplied by this)
 cvar_t	*intermission_time;  // minimum time the intermission will last
 cvar_t	*intermission_sound; // sound to play during intermission
@@ -29,6 +36,7 @@ cvar_t	*shard_armor;        // sets amount of armor gained from armor shards
 cvar_t	*power_armor_screen; // sets damage saved per cell
 cvar_t	*power_armor_shield; // sets damage saved per cell
 cvar_t	*dropweapammo;       // percentage of default ammo gained from a dropped weapon
+cvar_t	*allow_func_explosives;
 
 // sets damage the weapon does per projectile
 cvar_t	*blaster_damage;
@@ -65,6 +73,10 @@ cvar_t	*trap_health;
 cvar_t	*nuke_delay;
 cvar_t	*nuke_life;
 cvar_t	*nuke_radius;
+cvar_t	*defender_blaster_damage;
+cvar_t	*defender_blaster_speed;
+cvar_t	*vengeance_health_threshold;
+cvar_t	*blaster_type;  //blaster color- 1=yellow, 2=green, 3=blue 3=green hand blaster, blue hyper
 //end ScarFace
 
 // sets speed of projectile fired
@@ -84,6 +96,21 @@ cvar_t	*etf_rifle_speed;
 cvar_t	*disruptor_speed;
 cvar_t	*ionripper_speed;
 cvar_t	*phalanx_speed;
+
+cvar_t	*am_rocket_damage;
+cvar_t	*am_rocket_damage2;
+cvar_t	*am_rocket_rdamage;
+cvar_t	*am_rocket_speed;
+cvar_t	*am_rocket_radius;
+
+cvar_t	*am_pod_damage;
+cvar_t	*am_pod_damage2;
+cvar_t	*am_pod_rdamage;
+cvar_t	*am_pod_speed;
+cvar_t	*am_pod_radius;
+cvar_t	*am_pod_effect_damage;
+cvar_t	*am_pod_effect_radius;
+
 //end ScarFace
 
 // sets how many projectiles are fired
@@ -185,6 +212,7 @@ cvar_t	*start_disruptor;
 cvar_t	*start_proxlauncher;
 cvar_t	*start_plasmabeam;
 cvar_t	*start_chainfist;
+cvar_t	*start_shockwave;
 cvar_t	*start_rune;
 
 // weapon banning
@@ -211,8 +239,15 @@ cvar_t	*no_chainfist;
 
 //ScarFace
 cvar_t	*armor_bonus_value; //value of armor shards
+cvar_t	*health_bonus_value; //value of armor shards
 cvar_t	*powerup_max;
 cvar_t	*nuke_max;
+cvar_t	*doppleganger_max;
+cvar_t	*defender_time;
+cvar_t	*vengeance_time;
+cvar_t	*hunter_time;
+cvar_t	*doppleganger_time;
+cvar_t	*doppleganger_health;
 cvar_t	*quad_time;
 cvar_t	*inv_time;
 cvar_t	*breather_time;
@@ -248,6 +283,12 @@ cvar_t	*pack_rockets;  // 100
 cvar_t	*pack_grenades; // 100
 cvar_t	*pack_cells;    // 300
 cvar_t	*pack_slugs;    // 100
+cvar_t	*pack_magslugs;
+cvar_t	*pack_flechettes;
+cvar_t	*pack_rounds;
+cvar_t	*pack_prox;
+cvar_t	*pack_tesla;
+cvar_t	*pack_traps;
 
 cvar_t	*use_safety;         // enables safety spawn period
 cvar_t	*safety_time;        // time the safety spawn shield lasts
@@ -332,7 +373,7 @@ cvar_t	*ping_min;           // mi nimum ping allowed
 cvar_t	*ping_max;           // maximum ping allowed
 //cvar_t	*no_*               inhibit (disable) items, only takes effect after map change
 cvar_t	*admin_code;         // sets the admin code, 0 to disable (max 5 digits)
-cvar_t	*use_packs;          // enables packes
+cvar_t	*use_packs;          // enables packs
 cvar_t	*use_gslog;          // enables GSLog frag logging (Gibstats Standard Log)
 cvar_t	*gslog;              // sets GSLog output file
 cvar_t	*gslog_flush;        // enables instant logging
@@ -435,6 +476,12 @@ void lithium_defaults(void)
 	def_id = gi.cvar("def_id", "1", 0);
 	def_hud = gi.cvar("def_hud", "2", 0);
 	def_scores = gi.cvar("def_scores", "1", 0);
+	mega_gibs = gi.cvar("mega_gibs", "0", 0);
+	am_pod_bounces = gi.cvar("am_pod_bounces", "5", 0);
+	am_pod_mdl = gi.cvar("am_pod_mdl", "models/items/tagtoken/tris.md2", 0);
+	ionripper_extra_sounds = gi.cvar("ionripper_extra_sounds", "0", 0);
+
+	player_gib_health = gi.cvar("player_gib_health", "-40", 0);
 	fall_damagemod = gi.cvar("fall_damagemod", "1.0", 0);
 	showbotping = gi.cvar("showbotping", "0", 0);
 
@@ -448,6 +495,8 @@ void lithium_defaults(void)
 	power_armor_screen = gi.cvar("power_armor_screen", "0.25", 0);
 	power_armor_shield = gi.cvar("power_armor_shield", "0.50", 0);
 	dropweapammo = gi.cvar("dropweapammo", "0.5", 0);
+	allow_func_explosives = gi.cvar("allow_func_explosives", "0", CVAR_LATCH);
+
 	use_safety = gi.cvar("use_safety", "1", 0);
 	safety_time = gi.cvar("safety_time", "3.0", 0);
 	use_observer = gi.cvar("use_observer", "1", 0);
@@ -537,8 +586,15 @@ void lithium_defaults(void)
 
 //ScarFace
 	armor_bonus_value = gi.cvar("armor_bonus_value", "2", 0);
+	health_bonus_value = gi.cvar("health_bonus_value", "2", 0);
 	powerup_max = gi.cvar("powerup_max", "2", 0);
+	doppleganger_max = gi.cvar("doppleganger_max", "1", 0);
 	nuke_max = gi.cvar("nuke_max", "1", 0);
+	defender_time = gi.cvar("defender_time", "60", 0);
+	vengeance_time = gi.cvar("vengeance_time", "60", 0);
+	hunter_time = gi.cvar("hunter_time", "60", 0);
+	doppleganger_time = gi.cvar("doppleganger_time", "30", 0);
+	doppleganger_health = gi.cvar("doppleganger_health", "30", 0);
 	quad_time = gi.cvar("quad_time", "30", 0);
 	inv_time = gi.cvar("inv_time", "30", 0);
 	breather_time = gi.cvar("breather_time", "30", 0);
@@ -551,11 +607,17 @@ void lithium_defaults(void)
 	pack_health = gi.cvar("pack_health", "120", 0);
 	pack_armor = gi.cvar("pack_armor", "250", 0);
 	pack_bullets = gi.cvar("pack_bullets", "360", 0);
-	pack_shells = gi.cvar("pack_shells", "180", 0);
-	pack_rockets = gi.cvar("pack_rockets", "90", 0);
-	pack_grenades = gi.cvar("pack_gremades", "90", 0);
+	pack_shells = gi.cvar("pack_shells", "200", 0);
+	pack_rockets = gi.cvar("pack_rockets", "100", 0);
+	pack_grenades = gi.cvar("pack_grenades", "100", 0);
 	pack_cells = gi.cvar("pack_cells", "360", 0);
-	pack_slugs = gi.cvar("pack_slugs", "90", 0);
+	pack_slugs = gi.cvar("pack_slugs", "100", 0);
+	pack_magslugs = gi.cvar("pack_magslugs", "100", 0);
+	pack_flechettes = gi.cvar("pack_flechettes", "350", 0);
+	pack_rounds = gi.cvar("pack_rounds", "150", 0);
+	pack_prox = gi.cvar("pack_prox", "100", 0);
+	pack_tesla = gi.cvar("pack_tesla", "100", 0);
+	pack_traps = gi.cvar("pack_traps", "50", 0);
 
 	pack_spawn = gi.cvar("pack_spawn", "0.03", 0);
 	pack_life = gi.cvar("pack_life", "25", 0);
@@ -569,11 +631,11 @@ void lithium_defaults(void)
 	max_cells = gi.cvar("max_cells", "240", 0);
 	max_slugs = gi.cvar("max_slugs", "60", 0);
 	max_magslugs = gi.cvar("max_magslugs", "60", 0);
-	max_traps = gi.cvar("max_traps", "60", 0);
+	max_traps = gi.cvar("max_traps", "20", 0);
 	max_prox = gi.cvar("max_prox", "50", 0);
 	max_tesla = gi.cvar("max_tesla", "50", 0);
-	max_flechettes = gi.cvar("max_flechettes", "200", 0);
-	max_rounds = gi.cvar("max_rounds", "100", 0);
+	max_flechettes = gi.cvar("max_flechettes", "300", 0);
+	max_rounds = gi.cvar("max_rounds", "150", 0);
 
 	start_weapon = gi.cvar("start_weapon", "0", 0);
 
@@ -609,6 +671,7 @@ void lithium_defaults(void)
 	start_proxlauncher = gi.cvar("start_proxlauncher", "0", 0);
 	start_plasmabeam = gi.cvar("start_plasmabeam", "0", 0);
 	start_chainfist = gi.cvar("start_chainfist", "0", 0);
+	start_shockwave = gi.cvar("start_shockwave", "0", 0);
 
 	start_rune = gi.cvar("start_rune", "0", 0);
 
@@ -689,11 +752,30 @@ void lithium_defaults(void)
 	phalanx_radius_damage = gi.cvar("phalanx_radius_damage", "120", 0);
 	phalanx_radius = gi.cvar("phalanx_radius", "120", 0);
 	phalanx_speed = gi.cvar("phalanx_speed", "725", 0);
+
+	am_rocket_damage = gi.cvar("am_rocket_damage", "250", 0);
+	am_rocket_damage2 = gi.cvar("am_rocket_damage2", "120", 0);
+	am_rocket_rdamage = gi.cvar("am_rocket_rdamage", "500", 0);
+	am_rocket_speed = gi.cvar("am_rocket_speed", "650", 0);
+	am_rocket_radius = gi.cvar("am_rocket_radius", "5000", 0);
+
+	am_pod_damage = gi.cvar("am_pod_damage", "40", 0);
+	am_pod_damage2 = gi.cvar("am_pod_damage2", "20", 0);
+	am_pod_rdamage = gi.cvar("am_pod_rdamage", "100", 0);
+	am_pod_speed = gi.cvar("am_pod_speed", "650", 0);
+	am_pod_radius = gi.cvar("am_pod_radius", "300", 0);
+	am_pod_effect_damage = gi.cvar("am_pod_effect_damage", "180", 0);
+	am_pod_effect_radius = gi.cvar("am_pod_effect_radius", "350", 0);
+
 	trap_life = gi.cvar("trap_life", "30", 0);
 	trap_health = gi.cvar("trap_health", "30", 0);
 	nuke_delay = gi.cvar("nuke_delay", "4", 0);
 	nuke_life = gi.cvar("nuke_life", "6", 0);
 	nuke_radius = gi.cvar("nuke_radius", "512", 0);
+	defender_blaster_damage = gi.cvar("defender_blaster_damage", "10", 0);
+	defender_blaster_speed = gi.cvar("defender_blaster_speed", "1000", 0);
+	vengeance_health_threshold = gi.cvar("vengeance_health_threshold", "25", 0);
+	blaster_type = gi.cvar("blaster_type", "1", 0);
 //end ScarFace
 
 	bot_blaster_damage = gi.cvar("bot_blaster_damage", "17", 0);

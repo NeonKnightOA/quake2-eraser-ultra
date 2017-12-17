@@ -415,7 +415,7 @@ edict_t *spawn_bot (char *botname)
 
 // AJ change weapon if started with other than blaster..
 // AJ force to best weapon
-
+	//start with BFG?  I sure as hell hope not!!!!
 	if ( bot->client->pers.inventory[ITEM_INDEX(item_bfg10k)]
 		&& bot->client->pers.inventory[ITEM_INDEX(item_cells)]
 		&& (start_weapon->value==0 || start_weapon->value==10))

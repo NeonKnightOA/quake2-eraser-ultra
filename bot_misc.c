@@ -1329,6 +1329,11 @@ void BotInsult(edict_t *self, edict_t *enemy, int chat_type)
 
 qboolean SameTeam(edict_t *plyr1, edict_t *plyr2)
 {	// returns true if the 2 players are on the same team
+	if (!plyr1->client) //ScarFace added
+		return false;
+	if (!plyr2->client)
+		return false;
+
 	if (ctf->value)
 	{
 		return (plyr1->client->resp.ctf_team ==	plyr2->client->resp.ctf_team);
@@ -1364,9 +1369,14 @@ int CarryingFlag(edict_t *ent)
 		return false;
 
 	if (ent->client->resp.ctf_team == CTF_TEAM1)
-		return ent->client->pers.inventory[ITEM_INDEX(flag2_item)];
-	else
-		return ent->client->pers.inventory[ITEM_INDEX(flag1_item)];
+		if ((ent->client->pers.inventory[ITEM_INDEX(flag2_item)]) || (ent->client->pers.inventory[ITEM_INDEX(flag3_item)]))
+			return true;
+	else if (ent->client->resp.ctf_team == CTF_TEAM2)
+		if ((ent->client->pers.inventory[ITEM_INDEX(flag1_item)]) || (ent->client->pers.inventory[ITEM_INDEX(flag3_item)]))
+			return true;
+	else //team3
+		if ((ent->client->pers.inventory[ITEM_INDEX(flag1_item)]) || (ent->client->pers.inventory[ITEM_INDEX(flag2_item)]))
+			return true;
 */
-	return (ent->s.effects & (EF_FLAG1|EF_FLAG2));
+	return (ent->s.effects & (EF_FLAG1|EF_FLAG2));  //This will never support 3team mode, because there is no EF_FLAG3
 }

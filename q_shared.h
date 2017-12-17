@@ -580,7 +580,7 @@ typedef struct
 #define	RF_CUSTOMSKIN		256		// skin is an index in image_precache
 #define	RF_GLOW				512		// pulse lighting for bonus items
 #define RF_SHELL_RED		1024
-#define	RF_SHELL_GREEN		2048
+#define RF_SHELL_GREEN		2048
 #define RF_SHELL_BLUE		4096
 
 //ROGUE
@@ -1016,10 +1016,10 @@ typedef enum
 #define	DF_QUADFIRE_DROP	0x00010000	// 65536
 
 //ROGUE
-#define DF_NO_MINES			0x00020000
-#define DF_NO_STACK_DOUBLE	0x00040000
-#define DF_NO_NUKES			0x00080000
-#define DF_NO_SPHERES		0x00100000
+#define DF_NO_MINES			0x00020000 //131072
+#define DF_NO_STACK_DOUBLE	0x00040000  //262144
+#define DF_NO_NUKES			0x00080000 //524288
+#define DF_NO_SPHERES		0x00100000 //1048576
 //ROGUE
 
 /*

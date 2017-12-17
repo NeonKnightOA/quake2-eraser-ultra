@@ -6,6 +6,7 @@
 #include "aj_statusbars.h"
 #include "aj_banning.h"
 #include "e_grapple.h"
+#include "aj_weaponbalancing.h"
 
 #include "p_trail.h"
 
@@ -199,6 +200,9 @@ qboolean IsFemale (edict_t *ent)
 	info = Info_ValueForKey (ent->client->pers.userinfo, "skin");
 	if (info[0] == 'f' || info[0] == 'F')
 		return true;
+	//ScarFace- crack for Crackwhore
+	else if (strstr(info, "crakhor"))
+		return true;
 	return false;
 }
 
@@ -288,11 +292,27 @@ void ClientObituary (edict_t *self, edict_t *inflictor, edict_t *attacker)
 				else
 					message = "blew himself up";
 				break;
+			case MOD_AM_ROCKET:
+				if (IsFemale(self))
+					message = "blew herself to giblets";
+				else
+					message = "blew himself to giblets";
+				break;
+			case MOD_AM_POD:
+			case MOD_AM_POD_SPLASH:
+				if (IsFemale(self))
+					message = "was scrambled by her own shock sphere";
+				else
+					message = "was scrambled by his own shock sphere";
+				break;
 			case MOD_BFG_BLAST:
 				message = "should have used a smaller gun";
 				break;
 			case MOD_TRAP:
-			 	message = "sucked into his own trap";
+				if (IsFemale(self))
+			 		message = "was sucked into her own trap";
+				else
+			 		message = "was sucked into his own trap";
 				break;
 //ROGUE
 			case MOD_DOPPLE_EXPLODE:
@@ -357,6 +377,15 @@ void ClientObituary (edict_t *self, edict_t *inflictor, edict_t *attacker)
 				message = "ate";
 				message2 = "'s rocket";
 				break;
+			case MOD_AM_ROCKET:
+				message = "was blown to giblets by";
+				message2 = "'s anti-matter rocket";
+				break;
+			case MOD_AM_POD:
+			case MOD_AM_POD_SPLASH:
+				message = "was scrambled by";
+				message2 = "'s shock sphere";
+				break;
 			case MOD_R_SPLASH:
 				message = "almost dodged";
 				message2 = "'s rocket";
@@ -404,14 +433,15 @@ void ClientObituary (edict_t *self, edict_t *inflictor, edict_t *attacker)
 //ZOID
 			// RAFAEL 14-APR-98
 			case MOD_RIPPER:
-				message = "ripped to shreds by";
+				message = "was ripped to shreds by";
 				message2 = "'s ripper gun";
 				break;
 			case MOD_PHALANX:
 				message = "was evaporated by";
 				break;
 			case MOD_TRAP:
-				message = "caught in trap by";
+				message = "was sucked into";
+				message2 = "'s trap";
 				break;
 			// END 14-APR-98
 //===============
@@ -448,7 +478,7 @@ void ClientObituary (edict_t *self, edict_t *inflictor, edict_t *attacker)
 				message2 = "'s vengeance sphere";
 				break;
 			case MOD_DEFENDER_SPHERE:
-				message = "had a blast with";
+				message = "was blasted by";
 				message2 = "'s defender sphere";
 				break;
 			case MOD_HUNTER_SPHERE:
@@ -486,7 +516,10 @@ void ClientObituary (edict_t *self, edict_t *inflictor, edict_t *attacker)
 						if (attacker->client->team)
 							attacker->client->team->score--;
 					}
-					else
+					//elimate scoring for telefragging in CTF
+					else if ((ttctf->value) && (mod == MOD_TELEFRAG))
+						return;
+					else 
 					{
 						attacker->client->resp.score++;
 						if (attacker->client->team)
@@ -514,6 +547,7 @@ void TossClientWeapon (edict_t *self)
 	gitem_t		*item;
 	edict_t		*drop;
 	qboolean	quad;
+	qboolean	doubled;
 	// RAFAEL
 	qboolean	quadfire;
 	float		spread;
@@ -528,10 +562,15 @@ void TossClientWeapon (edict_t *self)
 		item = NULL;
 
 	if (!((int)(dmflags->value) & DF_QUAD_DROP))
+	{
 		quad = false;
+		doubled = false;
+	}
 	else
+	{
 		quad = (self->client->quad_framenum > (level.framenum + 10));
-
+		doubled = (self->client->double_framenum > (level.framenum + 10));
+	}
 	// RAFAEL
 	if (!((int)(dmflags->value) & DF_QUADFIRE_DROP))
 		quadfire = false;
@@ -563,7 +602,17 @@ void TossClientWeapon (edict_t *self)
 		drop->nextthink = level.time + (self->client->quad_framenum - level.framenum) * FRAMETIME;
 		drop->think = G_FreeEdict;
 	}
+	if (doubled) //ScarFace
+	{
+		self->client->v_angle[YAW] += spread;
+		drop = Drop_Item (self, FindItemByClassname ("item_double"));
+		self->client->v_angle[YAW] -= spread;
+		drop->spawnflags |= DROPPED_PLAYER_ITEM;
 
+		drop->touch = Touch_Item;
+		drop->nextthink = level.time + (self->client->double_framenum - level.framenum) * FRAMETIME;
+		drop->think = G_FreeEdict;
+	}
 	// RAFAEL
 	if (quadfire)
 	{
@@ -613,6 +662,7 @@ player_die
 void player_die (edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
 {
 	int		n;
+
 
 // AJ
 	// Expert: Release hook if needed
@@ -665,17 +715,62 @@ void player_die (edict_t *self, edict_t *inflictor, edict_t *attacker, int damag
 	self->client->invincible_framenum = 0;
 	self->client->breather_framenum = 0;
 	self->client->enviro_framenum = 0;
+	self->client->double_framenum = 0;				// PMM
 	// RAFAEL
 	self->client->quadfire_framenum = 0;
+
+//==============
+// ROGUE stuff
+	self->client->double_framenum = 0;
+
+	// if there's a sphere around, let it know the player died.
+	// vengeance and hunter will die if they're not attacking,
+	// defender should always die
+	if(self->client->owned_sphere)
+	{
+		edict_t *sphere;
+
+		sphere = self->client->owned_sphere;
+		sphere->die(sphere, self, self, 0, vec3_origin);
+	}
+
+	// if we've been killed by the tracker, GIB!
+	if((meansOfDeath & ~MOD_FRIENDLY_FIRE) == MOD_TRACKER)
+	{
+		self->health = (player_gib_health->value - 100);
+		damage = 400;
+	}
+
+	// make sure no trackers are still hurting us.
+	if(self->client->tracker_pain_framenum)
+	{
+		RemoveAttackingPainDaemons (self);
+	}
+	
+	// if we got obliterated by the nuke, don't gib
+	if ((self->health < -80) && (meansOfDeath == MOD_NUKE))
+		self->flags |= FL_NOGIB;
+
+// ROGUE
+//==============
 
 	// clear inventory
 	memset(self->client->pers.inventory, 0, sizeof(self->client->pers.inventory));
 
-	if (self->health < -40)
+	if (self->health < player_gib_health->value)
 	{	// gib
 		gi.sound (self, CHAN_BODY, gi.soundindex ("misc/udeath.wav"), 1, ATTN_NORM, 0);
 		for (n= 0; n < 4; n++)
 			ThrowGib (self, "models/objects/gibs/sm_meat/tris.md2", damage, GIB_ORGANIC);
+		if (mega_gibs->value == 1)
+		{
+			ThrowGib (self, "models/objects/gibs/arm/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/arm/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/leg/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/leg/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/bone/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/bone2/tris.md2", damage, GIB_ORGANIC);
+		}
 		ThrowClientHead (self, damage);
 
 //ZOID
@@ -780,6 +875,9 @@ void InitClientPersistant (gclient_t *client)
 	client->pers.max_prox		= 50;
 	client->pers.max_tesla		= 50;
 	client->pers.max_flechettes = 200;
+	client->pers.am_rockets			= FALSE;
+	client->pers.am_bounce_pod		= FALSE;
+
 #ifndef KILL_DISRUPTOR
 	client->pers.max_rounds     = 100;
 #endif
@@ -1148,12 +1246,21 @@ void body_die (edict_t *self, edict_t *inflictor, edict_t *attacker, int damage,
 {
 	int	n;
 
-	if (self->health < -40)
+	if (self->health < player_gib_health->value)
 	{
 		gi.sound (self, CHAN_BODY, gi.soundindex ("misc/udeath.wav"), 1, ATTN_NORM, 0);
 		for (n= 0; n < 4; n++)
 			ThrowGib (self, "models/objects/gibs/sm_meat/tris.md2", damage, GIB_ORGANIC);
 		self->s.origin[2] -= 48;
+		if (mega_gibs->value == 1) //mega gibs
+		{
+			ThrowGib (self, "models/objects/gibs/arm/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/arm/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/leg/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/leg/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/bone/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/bone2/tris.md2", damage, GIB_ORGANIC);
+		}
 		ThrowClientHead (self, damage);
 		self->takedamage = DAMAGE_NO;
 	}
@@ -1198,6 +1305,7 @@ void CopyToBodyQue (edict_t *ent)
 
 void respawn (edict_t *self)
 {
+
 	if (deathmatch->value || coop->value)
 	{
 		CopyToBodyQue (self);
@@ -1220,7 +1328,7 @@ void respawn (edict_t *self)
 // AJ - update the HUD
 		lithium_updatestats(self);
 // end AJ
-		return;
+
 	}
 
 	// restart the entire server
@@ -1529,6 +1637,7 @@ void ClientBeginDeathmatch (edict_t *ent)
 	gi.WriteByte (svc_muzzleflash);
 	gi.WriteShort (ent-g_edicts);
 	gi.WriteByte (MZ_LOGIN);
+	//gi.WriteByte (EV_PLAYER_TELEPORT); //ScarFace- get rid of grenade launcher sound
 	gi.multicast (ent->s.origin, MULTICAST_PVS);
 
 	my_bprintf (PRINT_HIGH, "%s entered the game\n", ent->client->pers.netname);
@@ -1816,6 +1925,27 @@ void ClientDisconnect (edict_t *ent)
 	botRemovePlayer(ent);
 
 	my_bprintf (PRINT_HIGH, "%s disconnected\n", ent->client->pers.netname);
+
+//============
+//ROGUE
+	// make sure no trackers are still hurting us.
+	if(ent->client->tracker_pain_framenum)
+		RemoveAttackingPainDaemons (ent);
+
+	if (ent->client->owned_sphere)
+	{
+		if(ent->client->owned_sphere->inuse)
+			G_FreeEdict (ent->client->owned_sphere);
+		ent->client->owned_sphere = NULL;
+	}
+
+	if (gamerules && gamerules->value)
+	{
+		if(DMGame.PlayerDisconnect)
+			DMGame.PlayerDisconnect(ent);
+	}
+//ROGUE
+//============
 
 //ZOID
 	CTFDeadDropFlag(ent);
@@ -2315,7 +2445,10 @@ void ClientBeginServerFrame (edict_t *ent)
 //			gi.centerprintf(ent, "End of safety.");
 		ent->client->respawn_time = level.time;
 		ent->client->ps.stats[STAT_LITHIUM_MODE] = 0;
-		ent->s.effects &= 0xF7FFFFFF; // clear the yellow shell
+//		ent->s.effects &= 0xF7FFFFFF; // clear the yellow shell
+//		ent->s.effects &= ~EF_COLOR_SHELL; 
+//		ent->s.renderfx &= ~RF_SHELL_GREEN;
+		ent->s.effects &= EF_HALF_DAMAGE; //ScarFace- clear green shell
 	}
 // end AJ
 
@@ -2588,4 +2721,28 @@ void ClientBeginServerFrame (edict_t *ent)
 		}
 	}
 
+}
+
+/*
+==============
+RemoveAttackingPainDaemons
+
+This is called to clean up the pain daemons that the disruptor attaches
+to clients to damage them.
+==============
+*/
+void RemoveAttackingPainDaemons (edict_t *self)
+{
+	edict_t *tracker;
+
+	tracker = G_Find (NULL, FOFS(classname), "pain daemon");
+	while(tracker)
+	{
+		if(tracker->enemy == self)
+			G_FreeEdict(tracker);
+		tracker = G_Find (tracker, FOFS(classname), "pain daemon");
+	}
+
+	if(self->client)
+		self->client->tracker_pain_framenum = 0;
 }

@@ -32,6 +32,7 @@ extern	cvar_t	*start_disruptor;
 extern	cvar_t	*start_proxlauncher;
 extern	cvar_t	*start_plasmabeam;
 extern	cvar_t	*start_chainfist;
+extern	cvar_t	*start_shockwave;
 extern	cvar_t	*start_rune;
 
 // maximum values
@@ -60,4 +61,8 @@ extern	cvar_t	*pack_grenades;
 extern	cvar_t	*pack_cells;
 extern	cvar_t	*pack_slugs;
 extern	cvar_t	*pack_magslugs;
+extern	cvar_t	*pack_flechettes;
+extern	cvar_t	*pack_rounds;
+extern	cvar_t	*pack_prox;
+extern	cvar_t	*pack_tesla;
 extern	cvar_t	*pack_traps;

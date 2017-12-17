@@ -1,5 +1,12 @@
 /* Weapon balancing CVARs */
 
+extern	cvar_t	*mega_gibs; //extra gibs
+extern 	cvar_t	*player_gib_health;  //when to gib
+extern	cvar_t	*am_pod_bounces;  //number of bounces for antimatter pod
+extern	cvar_t	*am_pod_mdl;
+
+extern	cvar_t	*ionripper_extra_sounds;
+
 // sets damage the weapon does per projectile
 extern	cvar_t	*blaster_damage;
 extern	cvar_t	*shotgun_damage;
@@ -11,29 +18,36 @@ extern	cvar_t	*rocket_damage;
 extern	cvar_t	*hyperblaster_damage;
 extern	cvar_t	*railgun_damage;
 extern	cvar_t	*bfg_damage;
+
 //ScarFace
-cvar_t	*tesla_damage;
-cvar_t	*tesla_radius;
-cvar_t	*tesla_life;
-cvar_t	*tesla_health;
-cvar_t	*chainfist_damage;
-cvar_t	*plasmabeam_damage;
-cvar_t	*etf_rifle_damage;
-cvar_t	*disruptor_damage;
-cvar_t	*prox_damage;
-cvar_t	*prox_radius;
-cvar_t	*prox_life;
-cvar_t	*prox_health;
-cvar_t	*ionripper_damage;
-cvar_t	*phalanx_damage;
-cvar_t	*phalanx_damage2;
-cvar_t	*phalanx_radius_damage;
-cvar_t	*phalanx_radius;
-cvar_t	*trap_life;
-cvar_t	*trap_health;
-cvar_t	*nuke_delay;
-cvar_t	*nuke_life;
-cvar_t	*nuke_radius;
+extern cvar_t	*tesla_damage;
+extern cvar_t	*tesla_radius;
+extern cvar_t	*tesla_life;
+extern cvar_t	*tesla_health;
+extern cvar_t	*chainfist_damage;
+extern cvar_t	*plasmabeam_damage;
+extern cvar_t	*etf_rifle_damage;
+extern cvar_t	*disruptor_damage;
+extern cvar_t	*prox_damage;
+extern cvar_t	*prox_radius;
+extern cvar_t	*prox_life;
+extern cvar_t	*prox_health;
+extern cvar_t	*ionripper_damage;
+extern cvar_t	*phalanx_damage;
+extern cvar_t	*phalanx_damage2;
+extern cvar_t	*phalanx_radius_damage;
+extern cvar_t	*phalanx_radius;
+extern cvar_t	*trap_life;
+extern cvar_t	*trap_health;
+extern cvar_t	*nuke_delay;
+extern cvar_t	*nuke_life;
+extern cvar_t	*nuke_radius;
+extern cvar_t	*double_time;
+extern cvar_t	*quad_fire_time;
+extern cvar_t	*defender_blaster_damage;
+extern cvar_t	*defender_blaster_speed;
+extern cvar_t	*vengeance_health_threshold;
+extern cvar_t	*blaster_type;
 //end ScarFace
 
 // sets speed of projectile fired
@@ -48,10 +62,27 @@ extern	cvar_t	*hyperblaster_speed;
 extern	cvar_t	*railgun_speed;
 extern	cvar_t	*bfg_speed;
 //ScarFace
-cvar_t	*etf_rifle_speed;
-cvar_t	*disruptor_speed;
-cvar_t	*ionripper_speed;
-cvar_t	*phalanx_speed;
+extern cvar_t	*etf_rifle_speed;
+extern cvar_t	*disruptor_speed;
+extern cvar_t	*ionripper_speed;
+extern cvar_t	*phalanx_speed;
+extern cvar_t	*doppleganger_time;
+extern cvar_t	*doppleganger_health;
+
+extern cvar_t	*am_rocket_damage;
+extern cvar_t	*am_rocket_damage2;
+extern cvar_t	*am_rocket_rdamage;
+extern cvar_t	*am_rocket_speed;
+extern cvar_t	*am_rocket_radius;
+
+extern cvar_t	*am_pod_damage;
+extern cvar_t	*am_pod_damage2;
+extern cvar_t	*am_pod_rdamage;
+extern cvar_t	*am_pod_speed;
+extern cvar_t	*am_pod_radius;
+extern cvar_t	*am_pod_effect_damage;
+extern cvar_t	*am_pod_effect_radius;
+
 //end ScarFace
 
 // sets how many projectiles are fired

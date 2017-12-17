@@ -27,7 +27,7 @@
 #include "aj_banning.h"
 
 
-gitem_t *item_phalanx, *item_ionripper, *item_trap, *item_quadfire, *item_magslugs;
+gitem_t *item_phalanx, *item_ionripper, *item_trap, *item_quadfire, *item_magslugs, *item_ir_goggles, *item_double, *item_sphere_vengeance, *item_sphere_hunter, *item_sphere_defender, *item_doppleganger;
 
 
 
@@ -114,6 +114,8 @@ void lithium_initclient(gclient_t *client)
 	client->pers.inventory[ITEM_INDEX(item_proxlauncher)] = start_proxlauncher->value;
 	client->pers.inventory[ITEM_INDEX(item_plasmabeam)] = start_plasmabeam->value;
 	client->pers.inventory[ITEM_INDEX(item_chainfist)] = start_chainfist->value;
+	client->pers.inventory[ITEM_INDEX(item_shockwave)] = start_shockwave -> value;
+
 
 	switch ((int)start_rune->value)
 	{

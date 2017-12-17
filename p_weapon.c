@@ -10,13 +10,48 @@
 void	botPickBestWeapon(edict_t *self);
 
 qboolean	is_quad;
+qboolean	is_double;
 // RAFAEL
 static qboolean is_quadfire;
 static byte		is_silenced;
+//PGM
+static byte		damage_multiplier;
+//PGM
 
 void weapon_grenade_fire (edict_t *ent, qboolean held);
 // RAFAEL
 void weapon_trap_fire (edict_t *ent, qboolean held);
+
+//========
+//ROGUE
+byte P_DamageModifier(edict_t *ent)
+{
+	is_quad = 0;
+	is_double = 0;
+	damage_multiplier = 1;
+
+	if(ent->client->quad_framenum > level.framenum)
+	{
+		damage_multiplier *= 4;
+		is_quad = 1;
+
+		// if we're quad and DF_NO_STACK_DOUBLE is on, return now.
+		if(((int)(dmflags->value) & DF_NO_STACK_DOUBLE))
+			return damage_multiplier;
+	}
+	if(ent->client->double_framenum > level.framenum)
+	{
+		if ((deathmatch->value) || (damage_multiplier == 1))
+		{
+			damage_multiplier *= 2;
+			is_double = 1;
+		}
+	}
+	
+	return damage_multiplier;
+}
+//ROGUE
+//========
 
 void P_ProjectSource (gclient_t *client, vec3_t point, vec3_t distance, vec3_t forward, vec3_t right, vec3_t result)
 {
@@ -390,6 +425,14 @@ void NoAmmoWeaponChange (edict_t *ent)
 	else
 		return;
 
+	//ScarFace
+/*	if ( (client->pers.inventory[ITEM_INDEX(FindItem("rockets"))] >=5)
+		&&  client->pers.inventory[ITEM_INDEX(FindItem("shockwave"))] )
+	{
+		client->newweapon = FindItem ("shockwave");
+		return;
+	}
+*/
 	if ( client->pers.inventory[ITEM_INDEX(FindItem("slugs"))]
 		&&  client->pers.inventory[ITEM_INDEX(FindItem("railgun"))] )
 	{
@@ -408,6 +451,12 @@ void NoAmmoWeaponChange (edict_t *ent)
 	{
 		ent->client->newweapon = FindItem ("ionrippergun");	
 	}
+/*	if ( ent->client->pers.inventory[ITEM_INDEX (FindItem ("cells"))]
+		&& ent->client->pers.inventory[ITEM_INDEX (FindItem ("plasma beam"))])
+	{
+		ent->client->newweapon = FindItem ("plasma beam");	
+	}
+*/
 	if ( client->pers.inventory[ITEM_INDEX(FindItem("cells"))]
 		&&  client->pers.inventory[ITEM_INDEX(FindItem("hyperblaster"))] )
 	{
@@ -465,7 +514,8 @@ void Think_Weapon (edict_t *ent)
 	// call active weapon think routine
 	if (ent->client->pers.weapon && ent->client->pers.weapon->weaponthink)
 	{
-		is_quad = (ent->client->quad_framenum > level.framenum);
+		P_DamageModifier(ent);	
+	//	is_quad = (ent->client->quad_framenum > level.framenum);
 		// RAFAEL
 		is_quadfire = (ent->client->quadfire_framenum > level.framenum);
 		if (ent->client->silencer_shots)
@@ -492,7 +542,6 @@ void Use_Weapon (edict_t *ent, gitem_t *item)
 	// see if we're already using it
 	if (item == ent->client->pers.weapon)
 		return;
-
 	if (item->ammo && !g_select_empty->value && !(item->flags & IT_AMMO))
 	{
 		ammo_item = FindItem(item->ammo);
@@ -633,6 +682,17 @@ static void Weapon_Generic2 (edict_t *ent, int FRAME_ACTIVATE_LAST, int FRAME_FI
 {
 	int		n;
 
+	if (!strcmp (ent->client->pers.weapon->pickup_name, "Ionripper"))
+		if ( (ent->client->ps.gunframe == 0) && (ionripper_extra_sounds->value) )
+			gi.sound (ent, CHAN_AUTO, gi.soundindex("weapons/ionactive.wav"), 1.0, ATTN_NORM, 0);
+	if (!strcmp (ent->client->pers.weapon->pickup_name, "Shockwave"))
+	{
+		if (ent->client->ps.gunframe == 0)
+			gi.sound (ent, CHAN_AUTO, gi.soundindex("weapons/shockactive.wav"), 1.0, ATTN_NORM, 0);
+		if (ent->client->ps.gunframe == 62)
+			gi.sound (ent, CHAN_AUTO, gi.soundindex("weapons/shockaway.wav"), 1.0, ATTN_NORM, 0);
+	}
+
 	if (ent->client->weaponstate == WEAPON_DROPPING)
 	{
 		if (ent->client->ps.gunframe == FRAME_DEACTIVATE_LAST)
@@ -730,9 +790,13 @@ static void Weapon_Generic2 (edict_t *ent, int FRAME_ACTIVATE_LAST, int FRAME_FI
 		{
 			if (ent->client->ps.gunframe == fire_frames[n])
 			{
+				// FIXME - double should use different sound
 				if (ent->client->quad_framenum > level.framenum)
 					gi.sound(ent, CHAN_ITEM, gi.soundindex("items/damage3.wav"), 1, ATTN_NORM, 0);
-
+				else if (ent->client->double_framenum > level.framenum)
+					gi.sound(ent, CHAN_ITEM, gi.soundindex("misc/ddamage3.wav"), 1, ATTN_NORM, 0);
+				if (ent->client->quadfire_framenum > level.framenum)
+					gi.sound(ent, CHAN_ITEM, gi.soundindex("items/quadfire3.wav"), 1, ATTN_NORM, 0);
 				if (ent->client->latency > 0)
 				{	// simulate lag
 					int i;
@@ -767,7 +831,8 @@ static void Weapon_Generic2 (edict_t *ent, int FRAME_ACTIVATE_LAST, int FRAME_FI
 //						if (!ent->bot_client)
 //							gi.centerprintf(ent, "End of safety.");
 						ent->client->ps.stats[STAT_LITHIUM_MODE] = 0;
-						ent->s.effects &= 0xF7FFFFFF; // clear the yellow shell
+//						ent->s.effects &= 0xF7FFFFFF; // clear the yellow shell
+						ent->s.effects &= EF_HALF_DAMAGE; //ScarFace- clear green shell
 					}
 // end AJ
 
@@ -794,7 +859,7 @@ static void Weapon_Generic2 (edict_t *ent, int FRAME_ACTIVATE_LAST, int FRAME_FI
 					}
 // end AJ
 
-// AJ - here is the missing CTF sounds!
+// AJ - here are the missing CTF sounds!
 					if (!CTFApplyStrengthSound(ent))
 						if (ent->client->quad_framenum > level.framenum)
 							gi.sound(ent, CHAN_ITEM, gi.soundindex("items/damage3.wav"), 1, ATTN_NORM, 0);
@@ -866,6 +931,8 @@ void weapon_grenade_fire (edict_t *ent, qboolean held)
 	radius = damage+40;
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 //		damage *= damage_multiplier;		// PGM
 
 	AngleVectors (ent->client->v_angle, forward, right, up);
@@ -1240,6 +1307,8 @@ void weapon_grenadelauncher_fire (edict_t *ent)
 	if (is_quad)
 //		damage *= 4;
 		damage *= 4;		//pgm
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 	VectorSet(offset, 8, 8, ent->viewheight-8);
 	AngleVectors (ent->client->v_angle, forward, right, NULL);
@@ -1282,6 +1351,9 @@ void Weapon_GrenadeLauncher (edict_t *ent)
 	static int	fire_frames[]	= {6, 0};
 
 	Weapon_Generic (ent, 5, 16, 59, 64, pause_frames, fire_frames, weapon_grenadelauncher_fire);
+	// RAFAEL
+	if (is_quadfire)
+		Weapon_Generic (ent, 5, 16, 59, 64, pause_frames, fire_frames, weapon_grenadelauncher_fire);
 }
 
 //==========
@@ -1292,6 +1364,9 @@ void Weapon_ProxLauncher (edict_t *ent)
 	static int      fire_frames[]   = {6, 0};
 
 	Weapon_Generic (ent, 5, 16, 59, 64, pause_frames, fire_frames, weapon_grenadelauncher_fire);
+	// RAFAEL
+	if (is_quadfire)
+		Weapon_Generic (ent, 5, 16, 59, 64, pause_frames, fire_frames, weapon_grenadelauncher_fire);
 }
 //PGM
 //==========
@@ -1311,13 +1386,37 @@ void Weapon_RocketLauncher_Fire (edict_t *ent)
 	int		damage;
 	float	damage_radius;
 	int		radius_damage;
+	int		antimatter = 0;
 
+	if (ent->client->pers.am_rockets || ent->client->pers.am_bounce_pod) //anti-matter rockets!!!
+		//check for enough ammo
+		if 	(ent->client->pers.inventory[ent->client->ammo_index] >= 5)
+			antimatter = 1;
+
+	if (antimatter) //anti-matter rockets!!!
+	{
+//		if (ent->client->pers.am_bounce_pod)
+//		{
+//			damage = am_pod_damage->value + (int)(random() * am_pod_damage2->value);
+//			radius_damage = am_pod_rdamage->value;
+//			damage_radius = am_pod_radius->value;
+//		}
+//		else //ent->client->pers.am_rockets
+//		{
+			damage = am_rocket_damage->value + (int)(random() * am_rocket_damage2->value);
+			radius_damage = am_rocket_rdamage->value;
+			damage_radius = am_rocket_radius->value;
+//		}
+	}
+	else
+	{
 // AJ changed damage constant (100) and modifer (20) to cvars
-	damage = rocket_damage->value + (int)(random() * rocket_damage2->value);
+		damage = rocket_damage->value + (int)(random() * rocket_damage2->value);
 // AJ changed constant (120) to cvar
-	radius_damage = rocket_rdamage->value;
+		radius_damage = rocket_rdamage->value;
 // AJ changed constant (120) to cvar
-	damage_radius = rocket_radius->value;
+		damage_radius = rocket_radius->value;
+	}
 
 	if (is_quad)
 	{
@@ -1325,6 +1424,11 @@ void Weapon_RocketLauncher_Fire (edict_t *ent)
 		radius_damage *= 4;
 	}
 
+	if (is_double)	//ScarFace
+	{
+		damage *= 2;
+		radius_damage *= 2;
+	}
 	AngleVectors (ent->client->v_angle, forward, right, NULL);
 
 	VectorScale (forward, -2, ent->client->kick_origin);
@@ -1332,21 +1436,37 @@ void Weapon_RocketLauncher_Fire (edict_t *ent)
 
 	VectorSet(offset, 8, 8, ent->viewheight-8);
 	P_ProjectSource (ent->client, ent->s.origin, offset, forward, right, start);
+
+	if (antimatter) //anti-matter rockets!!!
+	{
+		if (ent->client->pers.am_bounce_pod)
+			fire_am_pod (ent, start, forward, damage, am_pod_speed->value, damage_radius, radius_damage);
+		else //ent->client->pers.am_rockets
+			fire_am_rocket (ent, start, forward, damage, am_rocket_speed->value, damage_radius, radius_damage);
+	}
+	else
 // AJ changed constant 650 for cvar rocket_speed->value
-	fire_rocket (ent, start, forward, damage, rocket_speed->value, damage_radius, radius_damage);
+		fire_rocket (ent, start, forward, damage, rocket_speed->value, damage_radius, radius_damage);
 
 	// send muzzle flash
 	gi.WriteByte (svc_muzzleflash);
 	gi.WriteShort (ent-g_edicts);
+//	gi.WriteByte (MZ2_CHICK_ROCKET_1);
 	gi.WriteByte (MZ_ROCKET | is_silenced);
 	gi.multicast (ent->s.origin, MULTICAST_PVS);
 
+	if (antimatter)
+		gi.sound (ent, CHAN_AUTO, gi.soundindex("weapons/rocklf1a.wav"), 1.0, ATTN_NORM, 0);
+//		gi.sound (ent, CHAN_AUTO, gi.soundindex ("tank/rocket.wav"), 1, ATTN_NORM, 0);
+//		gi.sound (ent, CHAN_AUTO, gi.soundindex ("chick/chkatck2.wav"), 1, ATTN_NORM, 0);
+
 	ent->client->ps.gunframe++;
-
 	PlayerNoise(ent, start, PNOISE_WEAPON);
-
-	if (! ( (int)dmflags->value & DF_INFINITE_AMMO ) )
-		ent->client->pers.inventory[ent->client->ammo_index]--;
+	if (antimatter) //anti-matter rockets/pods - 5 ammo per shot, no infinite ammo for this
+		ent->client->pers.inventory[ent->client->ammo_index] -= 5;
+	else
+		if (! ( (int)dmflags->value & DF_INFINITE_AMMO ) )
+			ent->client->pers.inventory[ent->client->ammo_index]--;
 }
 
 void Weapon_RocketLauncher (edict_t *ent)
@@ -1378,6 +1498,9 @@ void Blaster_Fire (edict_t *ent, vec3_t g_offset, int damage, qboolean hyper, in
 
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
+
 	AngleVectors (ent->client->v_angle, forward, right, NULL);
 	VectorSet(offset, 24, 8, ent->viewheight-8);
 	VectorAdd (offset, g_offset, offset);
@@ -1398,9 +1521,26 @@ void Blaster_Fire (edict_t *ent, vec3_t g_offset, int damage, qboolean hyper, in
 	gi.WriteByte (svc_muzzleflash);
 	gi.WriteShort (ent-g_edicts);
 	if (hyper)
-		gi.WriteByte (MZ_HYPERBLASTER | is_silenced);
+	{	//ScarFace- different blaster types
+		if (blaster_type->value == 2) //green
+			gi.WriteByte (MZ_HYPERBLASTER | is_silenced);
+//			gi.WriteByte (MZ2_DAEDALUS_BLASTER | is_silenced);
+		else if ((blaster_type->value == 3) || (blaster_type->value == 4)) //blue
+			gi.WriteByte (MZ_BLUEHYPERBLASTER | is_silenced);
+		else //standard yellow
+			gi.WriteByte (MZ_HYPERBLASTER | is_silenced);
+	}
 	else
-		gi.WriteByte (MZ_BLASTER | is_silenced);
+	{	//ScarFace- different blaster types
+		if ((blaster_type->value == 2) || (blaster_type->value == 4)) //green
+			gi.WriteByte (MZ_BLASTER | is_silenced);
+//			gi.WriteByte (MZ2_STALKER_BLASTER | is_silenced);
+		else if (blaster_type->value == 3) //blue
+			gi.WriteByte (MZ_BLASTER | is_silenced);
+//			gi.WriteByte (MZ_BLUEHYPERBLASTER | is_silenced);
+		else //standard yellow
+			gi.WriteByte (MZ_BLASTER | is_silenced);
+	}
 	gi.multicast (ent->s.origin, MULTICAST_PVS);
 
 	PlayerNoise(ent, start, PNOISE_WEAPON);
@@ -1410,13 +1550,23 @@ void Blaster_Fire (edict_t *ent, vec3_t g_offset, int damage, qboolean hyper, in
 void Weapon_Blaster_Fire (edict_t *ent)
 {
 	int		damage;
+	int		effect;
 
 	if (deathmatch->value)
 // AJ - changed damage constant (15) to cvar
 		damage = blaster_damage->value;
 	else
 		damage = 10;
-	Blaster_Fire (ent, vec3_origin, damage, false, EF_BLASTER);
+
+	//ScarFace- different blaster types
+	if ((blaster_type->value == 2) || (blaster_type->value == 4)) //green
+		effect = EF_BLASTER;
+	else if (blaster_type->value == 3) //blue
+		effect = EF_BLUEHYPERBLASTER;
+	else //standard yellow
+		effect = EF_BLASTER;
+
+	Blaster_Fire (ent, vec3_origin, damage, false, effect);
 	ent->client->ps.gunframe++;
 }
 
@@ -1466,7 +1616,15 @@ void Weapon_HyperBlaster_Fire (edict_t *ent)
 			offset[2] = 4 * cos(rotation);
 
 			if ((ent->client->ps.gunframe == 6) || (ent->client->ps.gunframe == 9))
-				effect = EF_HYPERBLASTER;
+			{	//ScarFace- different blaster types
+				if (blaster_type->value == 2) //green
+//					effect = EF_BLASTER;
+					effect = EF_HYPERBLASTER;
+				else if ((blaster_type->value == 3) || (blaster_type->value == 4)) //blue
+					effect = EF_BLUEHYPERBLASTER;
+				else //standard yellow
+					effect = EF_HYPERBLASTER;
+			}
 			else
 				effect = 0;
 			if (deathmatch->value)
@@ -1553,7 +1711,11 @@ void Machinegun_Fire (edict_t *ent)
 		damage *= 4;
 		kick *= 4;
 	}
-
+	if (is_double)	//ScarFace
+	{
+		damage *= 2;
+		kick *= 2;
+	}
 	for (i=1 ; i<3 ; i++)
 	{
 		ent->client->kick_origin[i] = crandom() * 0.35;
@@ -1620,13 +1782,14 @@ void Chaingun_Fire (edict_t *ent)
 
 	if (ent->client->ps.gunframe == 5)
 		gi.sound(ent, CHAN_AUTO, gi.soundindex("weapons/chngnu1a.wav"), 1, ATTN_IDLE, 0);
-
+	//stop firing if they released the trigger
 	if ((ent->client->ps.gunframe == 14) && !(ent->client->buttons & BUTTON_ATTACK))
 	{
 		ent->client->ps.gunframe = 32;
 		ent->client->weapon_sound = 0;
 		return;
 	}
+	//loop back to start of full spin frames
 	else if ((ent->client->ps.gunframe == 21) && (ent->client->buttons & BUTTON_ATTACK)
 		&& ent->client->pers.inventory[ent->client->ammo_index])
 	{
@@ -1636,32 +1799,32 @@ void Chaingun_Fire (edict_t *ent)
 	{
 		ent->client->ps.gunframe++;
 	}
-
+	//stop firing if on end frames and play wind down sound
 	if (ent->client->ps.gunframe == 22)
 	{
 		ent->client->weapon_sound = 0;
 		gi.sound(ent, CHAN_AUTO, gi.soundindex("weapons/chngnd1a.wav"), 1, ATTN_IDLE, 0);
 	}
-	else
+	else //play rotating sound
 	{
 		ent->client->weapon_sound = gi.soundindex("weapons/chngnl1a.wav");
 	}
 
-	if (ent->client->ps.gunframe <= 9)
+	if (ent->client->ps.gunframe <= 9) //1 shot per frame on wind up
 		shots = 1;
 	else if (ent->client->ps.gunframe <= 14)
-	{
+	{  //2 rounds per frame on frames 10 thru 14
 		if (ent->client->buttons & BUTTON_ATTACK)
 			shots = 2;
-		else
+		else //one shot per frame if trigger released
 			shots = 1;
 	}
-	else
+	else //3 rounds per frame on frames 15 thru 20
 		shots = 3;
-
+	//if at end of ammo supply, only fire the remaining 1 or 2 bullets
 	if (ent->client->pers.inventory[ent->client->ammo_index] < shots)
 		shots = ent->client->pers.inventory[ent->client->ammo_index];
-
+	//check for no ammo
 	if (!shots)
 	{
 		if (level.time >= ent->pain_debounce_time)
@@ -1678,7 +1841,11 @@ void Chaingun_Fire (edict_t *ent)
 		damage *= 4;
 		kick *= 4;
 	}
-
+	if (is_double)	//ScarFace
+	{
+		damage *= 2;
+		kick *= 2;
+	}
 	for (i=0 ; i<3 ; i++)
 	{
 		ent->client->kick_origin[i] = crandom() * 0.35;
@@ -1760,6 +1927,11 @@ void weapon_shotgun_fire (edict_t *ent)
 		damage *= 4;
 		kick *= 4;
 	}
+	if (is_double)	//ScarFace
+	{
+		damage *= 2;
+		kick *= 2;
+	}
 
 	if (deathmatch->value)
 // AJ changed h/vspread constants (500) and count constant to cvars
@@ -1816,7 +1988,11 @@ void weapon_supershotgun_fire (edict_t *ent)
 		damage *= 4;
 		kick *= 4;
 	}
-
+	if (is_double)	//ScarFace
+	{
+		damage *= 2;
+		kick *= 2;
+	}
 	v[PITCH] = ent->client->v_angle[PITCH];
 	v[YAW]   = ent->client->v_angle[YAW] - 5;
 	v[ROLL]  = ent->client->v_angle[ROLL];
@@ -1887,6 +2063,11 @@ void weapon_railgun_fire (edict_t *ent)
 	{
 		damage *= 4;
 		kick *= 4;
+	}
+	if (is_double)	//ScarFace
+	{
+		damage *= 2;
+		kick *= 2;
 	}
 
 	AngleVectors (ent->client->v_angle, forward, right, NULL);
@@ -1972,6 +2153,8 @@ void weapon_bfg_fire (edict_t *ent)
 
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 	AngleVectors (ent->client->v_angle, forward, right, NULL);
 
@@ -2039,6 +2222,11 @@ void weapon_ionripper_fire (edict_t *ent)
 	{
 		damage *= 4;
 		kick *= 4;
+	}
+	if (is_double)	//ScarFace
+	{
+		damage *= 2;
+		kick *= 2;
 	}
 
 	VectorCopy (ent->client->v_angle, tempang);
@@ -2108,6 +2296,11 @@ void weapon_phalanx_fire (edict_t *ent)
 	{
 		damage *= 4;
 		radius_damage *= 4;
+	}
+	if (is_double)	//ScarFace
+	{
+		damage *= 2;
+		radius_damage *= 2;
 	}
 
 	AngleVectors (ent->client->v_angle, forward, right, NULL);
@@ -2191,6 +2384,8 @@ void weapon_trap_fire (edict_t *ent, qboolean held)
 	radius = damage+40;
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 	VectorSet(offset, 8, 8, ent->viewheight-8);
 	AngleVectors (ent->client->v_angle, forward, right, NULL);
@@ -2346,6 +2541,8 @@ void weapon_chainfist_fire (edict_t *ent)
 
 	if (is_quad)
 		damage *= 4;
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 	AngleVectors (ent->client->v_angle, forward, right, up);
 
@@ -2440,6 +2637,9 @@ void Weapon_ChainFist (edict_t *ent)
 		ent->client->weapon_sound = gi.soundindex("weapons/sawidle.wav");
 
 	Weapon_Generic (ent, 4, 32, 57, 60, pause_frames, fire_frames, weapon_chainfist_fire);
+	// RAFAEL
+	if (is_quadfire)
+		Weapon_Generic (ent, 4, 32, 57, 60, pause_frames, fire_frames, weapon_chainfist_fire);
 
 //	gi.dprintf("chainfist %d\n", ent->client->ps.gunframe);
 	if((ent->client->buttons) & BUTTON_ATTACK)
@@ -2497,6 +2697,8 @@ void weapon_tracker_fire (edict_t *self)
 
 	if (is_quad)
 		damage *= 4;		//pgm
+	if (is_double)	//ScarFace
+		damage *= 2;
 
 	VectorSet(mins, -16, -16, -16);
 	VectorSet(maxs, 16, 16, 16);
@@ -2544,6 +2746,8 @@ void weapon_tracker_fire (edict_t *self)
 	PlayerNoise(self, start, PNOISE_WEAPON);
 
 	self->client->ps.gunframe++;
+	//ScarFace- added infinite ammo check
+	if (! ( (int)dmflags->value & DF_INFINITE_AMMO ) )
 	self->client->pers.inventory[self->client->ammo_index] -= self->client->pers.weapon->quantity;
 }
 
@@ -2554,6 +2758,9 @@ void Weapon_Disintegrator (edict_t *ent)
 	static int	fire_frames[]	= {5, 0};
 
 	Weapon_Generic (ent, 4, 9, 29, 34, pause_frames, fire_frames, weapon_tracker_fire);
+	// RAFAEL
+	if (is_quadfire)
+		Weapon_Generic (ent, 4, 9, 29, 34, pause_frames, fire_frames, weapon_tracker_fire);
 }
 
 /*
@@ -2599,6 +2806,11 @@ void weapon_etf_rifle_fire (edict_t *ent)
 		damage *= 4;
 		kick *= 4;
 	}
+	if (is_double)	//ScarFace
+	{
+		damage *= 2;
+		kick *= 2;
+	}
 
 	for(i=0;i<3;i++)
 	{
@@ -2640,7 +2852,9 @@ void weapon_etf_rifle_fire (edict_t *ent)
 	PlayerNoise(ent, start, PNOISE_WEAPON);
 
 	ent->client->ps.gunframe++;
-	ent->client->pers.inventory[ent->client->ammo_index] -= ent->client->pers.weapon->quantity;
+	//ScarFace- added infinite ammo check
+	if (! ( (int)dmflags->value & DF_INFINITE_AMMO ) )
+		ent->client->pers.inventory[ent->client->ammo_index] -= ent->client->pers.weapon->quantity;
 
 	ent->client->anim_priority = ANIM_ATTACK;
 	if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
@@ -2674,7 +2888,10 @@ void Weapon_ETF_Rifle (edict_t *ent)
 	}
 
 	Weapon_Generic (ent, 4, 7, 37, 41, pause_frames, fire_frames, weapon_etf_rifle_fire);
-
+	// RAFAEL
+	if (is_quadfire)
+		Weapon_Generic (ent, 4, 7, 37, 41, pause_frames, fire_frames, weapon_etf_rifle_fire);
+	
 	if(ent->client->ps.gunframe == 8 && (ent->client->buttons & BUTTON_ATTACK))
 		ent->client->ps.gunframe = 6;
 
@@ -2719,6 +2936,11 @@ void Heatbeam_Fire (edict_t *ent)
 	{
 		damage *= 4;
 		kick *= 4;
+	}
+	if (is_double)	//ScarFace
+	{
+		damage *= 2;
+		kick *= 2;
 	}
 
 	VectorClear (ent->client->kick_origin);
@@ -2826,4 +3048,122 @@ void Weapon_Heatbeam (edict_t *ent)
 
 //	Weapon_Generic (ent, 8, 9, 39, 44, pause_frames, fire_frames, Heatbeam_Fire);
 	Weapon_Generic (ent, 8, 12, 39, 44, pause_frames, fire_frames, Heatbeam_Fire);
+	// RAFAEL
+	if (is_quadfire)
+		Weapon_Generic (ent, 8, 12, 39, 44, pause_frames, fire_frames, Heatbeam_Fire);
+
+}
+
+//ScarFace- this is not my code- I stole it from somewhere that I can't remember...
+/*
+======================================================================
+
+SHOCKWAVE
+
+======================================================================
+*/
+
+
+void Shockwave_Fire (edict_t *ent)
+{
+	vec3_t	offset, start;
+	vec3_t	forward, right; // up;
+	int		damage;
+	float	damage_radius;
+	int		radius_damage;
+
+//	int			i;
+//	float		r, u;
+
+	damage = am_pod_damage->value + (int)(random() * am_pod_damage2->value);
+	radius_damage = am_pod_rdamage->value;
+	damage_radius = am_pod_radius->value;
+
+	if (is_quad)
+	{
+		damage *= 4;
+		radius_damage *= 4;
+	}
+	if (is_double)
+	{
+		damage *= 2;
+		radius_damage *= 2;
+	}
+
+	if (ent->client->ps.gunframe == 5) //spin up sound
+	{
+		gi.sound (ent, CHAN_AUTO, gi.soundindex("weapons/podfire.wav"), 1.0, ATTN_NORM, 0);
+//		gi.sound(ent, CHAN_AUTO, gi.soundindex("weapons/chngnu1a.wav"), 1, ATTN_IDLE, 0);
+		ent->client->ps.gunframe++;
+		return;
+	}
+	//loop back to start of full spin frames
+/*	else if (ent->client->ps.gunframe == 21)
+	{
+		ent->client->ps.gunframe = 15;
+	}*/
+	//stop firing if on end frame and play wind down sound
+/*	else if (ent->client->ps.gunframe == 21)
+	{
+		ent->client->ps.gunframe++;
+		return;
+	}
+	else if (ent->client->ps.gunframe == 22)
+	{
+		ent->client->weapon_sound = 0; //stop rotating sound
+		gi.sound(ent, CHAN_AUTO, gi.soundindex("weapons/chngnd1a.wav"), 1, ATTN_IDLE, 0);
+		ent->client->ps.gunframe++;
+		return;
+	}*/
+	else if (ent->client->ps.gunframe > 20)
+	{
+		ent->client->ps.gunframe++;
+		return;
+	}
+	else if (ent->client->ps.gunframe < 20)//play rotating sound
+	{
+//		ent->client->weapon_sound = gi.soundindex("weapons/chngnl1a.wav");
+		ent->client->ps.gunframe++;
+		return;
+	}
+
+	AngleVectors (ent->client->v_angle, forward, right, NULL);
+	VectorScale (forward, -2, ent->client->kick_origin);
+	ent->client->kick_angles[0] = -1;
+//	VectorSet(offset, 8, 8, ent->viewheight-8);
+	VectorSet(offset, 0, 7, ent->viewheight-8);
+	P_ProjectSource (ent->client, ent->s.origin, offset, forward, right, start);
+/*	AngleVectors (ent->client->v_angle, forward, right, up);
+	r = 7 + crandom()*4;
+	u = crandom()*4;
+	VectorSet(offset, 0, r, u + ent->viewheight-8);
+	P_ProjectSource (ent->client, ent->s.origin, offset, forward, right, start);
+*/
+	fire_am_pod (ent, start, forward, damage, am_pod_speed->value, damage_radius, radius_damage);
+	// send muzzle flash and sound
+	gi.WriteByte (svc_muzzleflash);
+	gi.WriteShort (ent-g_edicts);
+//	gi.WriteByte (MZ_ROCKET | is_silenced);
+	gi.WriteByte (MZ2_MAKRON_BFG);
+	gi.multicast (ent->s.origin, MULTICAST_PVS);
+//	gi.sound (ent, CHAN_AUTO, gi.soundindex("weapons/podfire.wav"), 1.0, ATTN_NORM, 0);
+
+	ent->client->ps.gunframe++;
+	PlayerNoise(ent, start, PNOISE_WEAPON);
+	if (! ( (int)dmflags->value & DF_INFINITE_AMMO ) )
+		ent->client->pers.inventory[ent->client->ammo_index] -= 5;
+}
+
+
+void Weapon_Shockwave (edict_t *ent)
+{
+	static int	pause_frames[]	= {38, 43, 51, 61, 0};
+	static int	fire_frames[]	= {5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 0};
+//	static int	fire_frames[]	= {5, 20, 22, 0};
+
+	Weapon_Generic (ent, 4, 31, 61, 64, pause_frames, fire_frames, Shockwave_Fire);
+
+	// RAFAEL
+	if (is_quadfire)
+		Weapon_Generic (ent, 4, 31, 61, 64, pause_frames, fire_frames, Shockwave_Fire);
 }

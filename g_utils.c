@@ -536,7 +536,7 @@ qboolean KillBox (edict_t *ent)
 			break;
 
 		// nail it
-		T_Damage (tr.ent, ent, ent, vec3_origin, ent->s.origin, vec3_origin, 100000, 0, DAMAGE_NO_PROTECTION, MOD_TELEFRAG);
+		T_Damage (tr.ent, ent, ent, vec3_origin, ent->s.origin, vec3_origin, 100000, 0, DAMAGE_NO_PROTECTION, MOD_TRIGGER_HURT);
 
 		// if we didn't kill it, fail
 		if (tr.ent->solid)
@@ -560,7 +560,7 @@ qboolean KillBox (edict_t *ent)
 			continue;
 
 		// nail it
-		T_Damage (trav, ent, ent, vec3_origin, ent->s.origin, vec3_origin, 100000, 0, DAMAGE_NO_PROTECTION, MOD_TELEFRAG);
+		T_Damage (trav, ent, ent, vec3_origin, ent->s.origin, vec3_origin, 100000, 0, DAMAGE_NO_PROTECTION, MOD_TRIGGER_HURT);
 	}
 
 	return true;		// all clear

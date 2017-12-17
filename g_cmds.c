@@ -7,6 +7,7 @@
 #include "p_trail.h"
 
 #include "aj_replacelist.h"
+#include "aj_weaponbalancing.h"
 #include "aj_menu.h"
 #include "aj_lmctf.h"
 
@@ -45,9 +46,15 @@ qboolean OnSameTeam (edict_t *ent1, edict_t *ent2)
 	char	ent1Team [512];
 	char	ent2Team [512];
 
+	//ScarFace- CTF-specific check: fixes bug with players on opposite teams
+	//with same selected non-CTF skin not damaging each other
+	if (ctf->value)
+		if (ent1->client && ent2->client)
+			return (ent1->client->resp.ctf_team == ent2->client->resp.ctf_team);
+
 	// ERASER teams
 	if (ent1->client && ent2->client)
-		if (ent1->client->team && (ent1->client->team == ent2->client->team))
+		if (ent1->client->team && ent2->client->team && (ent1->client->team == ent2->client->team))
 			return true;
 
 	if (!((int)(dmflags->value) & (DF_MODELTEAMS | DF_SKINTEAMS)))
@@ -496,8 +503,9 @@ void Cmd_Drop_f (edict_t *ent)
 
 // AJ allow "drop flag"
 	if ((Q_stricmp(gi.args(), "flag") == 0)
-	    && (   (ent->client->pers.inventory[ITEM_INDEX(flag1_item)])
-		    || (ent->client->pers.inventory[ITEM_INDEX(flag2_item)])))
+	    && (  (ent->client->pers.inventory[ITEM_INDEX(flag1_item)])
+		|| (ent->client->pers.inventory[ITEM_INDEX(flag2_item)])
+		|| (ent->client->pers.inventory[ITEM_INDEX(flag3_item)])  ))
 	{
 //		flag1_item->drop (ent, flag1_item); // doesn't matter which flag it works it out
 		CTFDrop_Flag(ent, flag1_item);
@@ -795,6 +803,17 @@ void Cmd_Kill_f (edict_t *ent)
 	ent->flags &= ~FL_GODMODE;
 	ent->health = 0;
 	meansOfDeath = MOD_SUICIDE;
+//ROGUE
+	// make sure no trackers are still hurting us.
+	if(ent->client->tracker_pain_framenum)
+		RemoveAttackingPainDaemons (ent);
+
+	if (ent->client->owned_sphere)
+	{
+		G_FreeEdict(ent->client->owned_sphere);
+		ent->client->owned_sphere = NULL;
+	}
+//ROGUE
 	player_die (ent, ent, ent, 100000, vec3_origin);
 	// don't even bother waiting for death frames
 	ent->deadflag = DEAD_DEAD;
@@ -1425,6 +1444,44 @@ void ClientCommand (edict_t *ent)
 		Cmd_Wave_f (ent);
 	else if (Q_stricmp(cmd, "killtrap") == 0)
 		Cmd_KillTrap_f(ent);
+	else if (Q_stricmp(cmd, "purgegibs") == 0)
+		Cmd_PurgeGibs_f(ent);
+	else if (Q_stricmp(cmd, "runecount") == 0)
+		Cmd_RuneCount_f(ent);
+
+	//AM ROCKETS
+	else if (Q_stricmp (cmd, "amrockets") == 0)
+	{
+		if (ent->client->pers.am_rockets)
+		{
+			gi.dprintf ("Anti-matter rockets off\n");
+			ent->client->pers.am_rockets = FALSE;
+		}
+		else
+		{
+			gi.dprintf ("Anti-matter rockets on\n");
+			ent->client->pers.am_rockets = TRUE;
+		}
+	}
+	//AM PODS
+/*	else if (Q_stricmp (cmd, "ambouncepod") == 0)
+	{
+		if (ent->client->pers.am_bounce_pod)
+		{
+			gi.dprintf ("Anti-matter bouncing pods off\n");
+			ent->client->pers.am_bounce_pod = FALSE;
+		}
+		else
+		{
+			gi.dprintf ("Anti-matter bouncing pods on\n");
+			ent->client->pers.am_bounce_pod = TRUE;
+		}
+	}
+*/
+
+//CHASECAM
+	//else if (Q_stricmp (cmd, "chasecam") == 0)
+          //Cmd_Chasecam_Toggle (ent);
 	else if (Q_stricmp (cmd, "botname") == 0) {
 		if (!bot_allow_client_commands->value)
 		{

@@ -1,6 +1,9 @@
 #include "g_local.h"
 #include "aj_weaponbalancing.h" // AJ
 
+#define	NUKE_QUAKE_TIME		3
+#define NUKE_QUAKE_STRENGTH	100
+
 /*
 =================
 check_dodge
@@ -326,7 +329,62 @@ void blaster_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_t *
 		//if (self->s.effects & TE_BLUEHYPERBLASTER)
 		//	gi.WriteByte (TE_BLUEHYPERBLASTER);
 		//else
+
+		//ScarFace- different blaster types
+		if (blaster_type->value == 2) //green
+			gi.WriteByte (TE_BLASTER2);
+		else if (blaster_type->value == 3) //blue
+			gi.WriteByte (TE_FLECHETTE);
+		else if (blaster_type->value == 4) //green/blue single/hyper combo
+		{
+			if (self->spawnflags & 1) //blue if hyper
+				gi.WriteByte (TE_FLECHETTE);
+			else //else green
+				gi.WriteByte (TE_BLASTER2);
+		}
+		else //standard yellow
 			gi.WriteByte (TE_BLASTER);
+
+		gi.WritePosition (self->s.origin);
+		if (!plane)
+			gi.WriteDir (vec3_origin);
+		else
+			gi.WriteDir (plane->normal);
+		gi.multicast (self->s.origin, MULTICAST_PVS);
+	}
+
+	G_FreeEdict (self);
+}
+
+void blue_blaster_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
+{
+	int		mod;
+
+	if (other == self->owner)
+		return;
+
+	if (surf && (surf->flags & SURF_SKY))
+	{
+		G_FreeEdict (self);
+		return;
+	}
+
+	// PMM - crash prevention
+	if (self->owner && self->owner->client)
+		PlayerNoise(self->owner, self->s.origin, PNOISE_IMPACT);
+
+	if (other->takedamage)
+	{
+		if (self->spawnflags & 1)
+			mod = MOD_HYPERBLASTER;
+		else
+			mod = MOD_BLASTER;
+		T_Damage (other, self, self->owner, self->velocity, self->s.origin, plane->normal, self->dmg, 1, DAMAGE_ENERGY, mod);
+	}
+	else
+	{
+		gi.WriteByte (svc_temp_entity);
+		gi.WriteByte (TE_FLECHETTE);
 		gi.WritePosition (self->s.origin);
 		if (!plane)
 			gi.WriteDir (vec3_origin);
@@ -356,8 +414,32 @@ void fire_blaster (edict_t *self, vec3_t start, vec3_t dir, int damage, int spee
 	bolt->s.effects |= effect;
 	VectorClear (bolt->mins);
 	VectorClear (bolt->maxs);
-	bolt->s.modelindex = gi.modelindex ("models/objects/laser/tris.md2");
+	//ScarFace- different blaster types
+	if (blaster_type->value == 2) //green
+		bolt->s.modelindex = gi.modelindex ("models/objects/laser2/tris.md2");
+	else if (blaster_type->value == 3) //blue
+		bolt->s.modelindex = gi.modelindex ("models/objects/blaser/tris.md2");
+	else if (blaster_type->value == 4) //green/blue single/hyper combo
+	{
+		if (hyper) //blue if hyper
+			bolt->s.modelindex = gi.modelindex ("models/objects/blaser/tris.md2");
+		else //else green hand blaster
+			bolt->s.modelindex = gi.modelindex ("models/objects/laser2/tris.md2");
+	}
+	else //standard yellow
+		bolt->s.modelindex = gi.modelindex ("models/objects/laser/tris.md2");
+	//ScarFace- this skin switching cuts down on the number of models loaded
+	//But for SOME reason it doesn't work
+//	if (blaster_type->value == 2) //green
+//		self->s.skinnum = 1;
+//	else if (blaster_type->value == 3) //blue
+//		self->s.skinnum = 2;
+
 	bolt->s.sound = gi.soundindex ("misc/lasfly.wav");
+	//ScarFace -green blaster trail
+	if (((blaster_type->value == 2) || (blaster_type->value == 4)) && (hyper == false))
+		bolt->s.effects |= EF_TRACKER;
+
 	bolt->owner = self;
 	bolt->touch = blaster_touch;
 	bolt->nextthink = level.time + 2;
@@ -402,7 +484,7 @@ void fire_blueblaster (edict_t *self, vec3_t start, vec3_t dir, int damage, int 
 	bolt->s.modelindex = gi.modelindex ("models/objects/blaser/tris.md2");
 	bolt->s.sound = gi.soundindex ("misc/lasfly.wav");
 	bolt->owner = self;
-	bolt->touch = blaster_touch;
+	bolt->touch = blue_blaster_touch;
 	bolt->nextthink = level.time + 2;
 	bolt->think = G_FreeEdict;
 	bolt->dmg = damage;
@@ -605,6 +687,205 @@ void fire_grenade2 (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int 
 }
 
 
+void Nuke_Quake (edict_t *self); //Scarface- prototype for nuke quake
+
+void am_pod_effect_think (edict_t *self)
+{
+	int	i;
+	edict_t	*bot;
+	vec3_t	org2, vec;
+	float	dist;
+
+	if (++self->s.frame < 19)
+		self->nextthink = level.time + FRAMETIME;
+	else
+	{
+		self->s.frame = 0;
+		self->nextthink = level.time + FRAMETIME;
+	}
+	//remove after 6 secs
+	self->count--;
+	if (self ->count == 0)
+		G_FreeEdict (self);
+	//inflict field damage on surroundings
+	T_RadiusDamage(self, self->owner, self->radius_dmg, NULL, self->dmg_radius, MOD_AM_POD_SPLASH);
+
+	VectorMA(self->s.origin, 0.25, self->velocity, org2);
+	// scan for bot's to inform
+	for (i=0; i<num_players; i++)
+	{
+		bot = players[i];
+
+		if (bot->bot_client && (bot->bot_stats->combat < 4))
+			continue;
+
+		if ((fabs(bot->s.origin[0] - self->s.origin[0]) > 500) ||
+			(fabs(bot->s.origin[1] - self->s.origin[1]) > 500))
+			continue;
+
+		bot->avoid_ent = self;
+	}
+}
+
+void am_pod_effect_center_think (edict_t *self)
+{
+	self->nextthink = level.time + FRAMETIME;
+		if (self->count <= 40)
+	{
+		gi.WriteByte (svc_temp_entity);
+		gi.WriteByte (TE_NUKEBLAST);
+		gi.WritePosition (self->s.origin);
+		gi.multicast (self->s.origin, MULTICAST_ALL);
+	}
+	if (self->count <= 50)
+	{
+		gi.WriteByte (svc_temp_entity);
+		gi.WriteByte (TE_NUKEBLAST);
+		gi.WritePosition (self->s.origin);
+		gi.multicast (self->s.origin, MULTICAST_ALL);
+	}
+	//remove after 5 secs
+	self->count--;
+	if (self ->count == 0)
+		G_FreeEdict (self);
+}
+
+void AmPodEffect (edict_t *source, edict_t *attacker, float damage, float radius, cplane_t *plane)
+{
+	edict_t	*ent;
+	edict_t	*center;
+	vec3_t	hit_point;
+
+	if (plane->normal)
+	{	//putorigin of effect 24 units away from last hit surface
+		VectorMA (source->s.origin, 24.0, plane->normal, hit_point);
+	}
+
+	ent = G_Spawn();
+	//same origin as exploding shock sphere
+	if (plane->normal)
+		VectorCopy (hit_point, ent->s.origin);
+	else
+		VectorCopy (source->s.origin, ent->s.origin);
+	ent->radius_dmg = am_pod_effect_damage->value;
+	ent->dmg_radius = am_pod_effect_radius->value;
+	ent->owner = attacker;
+	ent->movetype = MOVETYPE_NONE;
+	ent->solid = SOLID_NOT;
+	VectorSet (ent->mins, -8, -8, 8);
+	VectorSet (ent->maxs, 8, 8, 8);
+	ent->s.modelindex = gi.modelindex ("models/objects/shockfield/tris.md2");
+	ent->s.renderfx = RF_TRANSLUCENT;
+	ent->s.effects = EF_FLAG2;
+	ent->count = 60;  //lasts 6 seconds
+//	ent->use = shock_effect_use;
+	ent->think = am_pod_effect_think;
+	ent->nextthink = level.time + 2 * FRAMETIME;
+	gi.linkentity (ent);
+
+	//center light burst effect
+	center = G_Spawn();
+	//same origin as exploding shock sphere
+	if (plane->normal)
+		VectorCopy (hit_point, center->s.origin);
+	else
+		VectorCopy (source->s.origin, center->s.origin);
+	center->movetype = MOVETYPE_NONE;
+	center->solid = SOLID_NOT;
+	VectorSet (center->mins, -8, -8, 8);
+	VectorSet (center->maxs, 8, 8, 8);
+	center->s.modelindex = gi.modelindex ("sprites/s_trap.sp2");
+	center->s.effects |= EF_FLAG2 | EF_ANIM_ALLFAST;
+	center->count = 50;  //lasts 5 seconds
+	center->think = am_pod_effect_center_think;
+	center->nextthink = level.time + 2 * FRAMETIME;
+	gi.linkentity (center);
+}
+
+void am_pod_touch (edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf)
+{
+	vec3_t		origin;
+	int			n;
+	vec3_t	hit_point;
+
+	ent->count++; //add to count
+
+	if (other == ent->owner)
+		return;
+	//detonate if hit a player
+	if (other->takedamage)
+		ent->count = am_pod_bounces->value + 1;
+
+	if (surf && (surf->flags & SURF_SKY))
+	{
+		G_FreeEdict (ent);
+		return;
+	}
+
+//	if (ent->owner->client)
+//		PlayerNoise(ent->owner, ent->s.origin, PNOISE_IMPACT);
+
+	// calculate position for the explosion entity
+	VectorMA (ent->s.origin, -0.02, ent->velocity, origin);
+
+	if (other->takedamage)
+		T_Damage (other, ent, ent->owner, ent->velocity, ent->s.origin, plane->normal, ent->dmg, 0, 0, MOD_AM_POD);
+	else
+	{
+		// don't throw any debris in net games
+		if (!deathmatch->value && !coop->value)
+		{
+			if ((surf) && !(surf->flags & (SURF_WARP|SURF_TRANS33|SURF_TRANS66|SURF_FLOWING)))
+			{
+				n = rand() % 5;
+				while(n--)
+					ThrowDebris (ent, "models/objects/debris2/tris.md2", 2, ent->s.origin);
+			}
+		}
+	}
+	T_RadiusDamage(ent, ent->owner, ent->radius_dmg, other, ent->dmg_radius, MOD_AM_POD_SPLASH);
+
+	gi.WriteByte (svc_temp_entity);
+	gi.WriteByte (TE_NUKEBLAST);
+	gi.WritePosition (ent->s.origin);
+	gi.multicast (ent->s.origin, MULTICAST_ALL);
+
+	if (ent->count > am_pod_bounces->value) //don't exploode until final hit
+	{ 
+//		gi.WriteByte (svc_temp_entity);
+//		gi.WriteByte (TE_EXPLOSION1_BIG);
+//		gi.WritePosition (ent->s.origin);
+//		gi.multicast (ent->s.origin, MULTICAST_PVS);
+//		gi.sound (ent, CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex ("weapons/grenlx1a.wav"), 1, ATTN_NONE, 0);
+		gi.sound (ent, CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex ("weapons/ampodexp.wav"), 1, ATTN_NONE, 0);
+		AmPodEffect (ent, ent->owner, ent->radius_dmg, ent->dmg_radius, plane);
+	}
+	else
+		gi.sound (ent, CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex ("weapons/ampodhit.wav"), 1, ATTN_NONE, 0);
+
+	if (ent->count <= am_pod_bounces->value)
+	{ 
+		edict_t	*impact;
+		impact = G_Spawn();
+		impact->classname = "am_pod_impact";
+		if (plane->normal)
+		{	//put origin of impact effect 16 units away from last hit surface
+			VectorMA (ent->s.origin, 16.0, plane->normal, hit_point);
+			VectorCopy (hit_point, impact->s.origin);
+		}
+		else
+			VectorCopy (ent->s.origin, impact->s.origin);
+		impact->think = Nuke_Quake;
+		impact->speed = NUKE_QUAKE_STRENGTH;
+		impact->timestamp = level.time + NUKE_QUAKE_TIME;
+		impact->nextthink = level.time + FRAMETIME;
+	}
+	//gi.WritePosition (origin);
+	//gi.multicast (ent->s.origin, MULTICAST_PHS);
+	else
+		G_FreeEdict (ent);
+}
+
 /*
 =================
 fire_rocket
@@ -647,8 +928,7 @@ void rocket_touch (edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *su
 			}
 		}
 	}
-
-	T_RadiusDamage(ent, ent->owner, ent->radius_dmg, other, ent->dmg_radius, MOD_R_SPLASH);
+		T_RadiusDamage(ent, ent->owner, ent->radius_dmg, other, ent->dmg_radius, MOD_R_SPLASH);
 
 	gi.WriteByte (svc_temp_entity);
 	if (ent->waterlevel)
@@ -659,6 +939,72 @@ void rocket_touch (edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *su
 	gi.multicast (ent->s.origin, MULTICAST_PHS);
 
 	G_FreeEdict (ent);
+}
+
+void am_rocket_touch (edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf)
+{
+	vec3_t		origin;
+	int			n;
+
+	if (other == ent->owner)
+		return;
+
+	if (surf && (surf->flags & SURF_SKY))
+	{
+		G_FreeEdict (ent);
+		return;
+	}
+
+//	if (ent->owner->client)
+//		PlayerNoise(ent->owner, ent->s.origin, PNOISE_IMPACT);
+
+	// calculate position for the explosion entity
+	VectorMA (ent->s.origin, -0.02, ent->velocity, origin);
+
+	if (other->takedamage)
+	{
+		T_Damage (other, ent, ent->owner, ent->velocity, ent->s.origin, plane->normal, ent->dmg, 0, 0, MOD_AM_ROCKET);
+	}
+	else
+	{
+		// don't throw any debris in net games
+		if (!deathmatch->value && !coop->value)
+		{
+			if ((surf) && !(surf->flags & (SURF_WARP|SURF_TRANS33|SURF_TRANS66|SURF_FLOWING)))
+			{
+				n = rand() % 5;
+				while(n--)
+					ThrowDebris (ent, "models/objects/debris2/tris.md2", 2, ent->s.origin);
+			}
+		}
+	}
+	T_RadiusDamage(ent, ent->owner, ent->radius_dmg, other, ent->dmg_radius, MOD_AM_ROCKET);
+
+	gi.sound (ent, CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex ("weapons/grenlx1a.wav"), 1, ATTN_NONE, 0);
+
+	gi.WriteByte (svc_temp_entity);
+	gi.WriteByte (TE_EXPLOSION1_BIG);
+	gi.WritePosition (ent->s.origin);
+	gi.multicast (ent->s.origin, MULTICAST_PVS);
+
+	gi.WriteByte (svc_temp_entity);
+	gi.WriteByte (TE_NUKEBLAST);
+	gi.WritePosition (ent->s.origin);
+	gi.multicast (ent->s.origin, MULTICAST_ALL);
+
+	// become a quake
+	ent->svflags |= SVF_NOCLIENT;
+	ent->noise_index = gi.soundindex ("world/rumble.wav");
+	ent->think = Nuke_Quake;
+	ent->speed = NUKE_QUAKE_STRENGTH;
+	ent->timestamp = level.time + NUKE_QUAKE_TIME;
+	ent->nextthink = level.time + FRAMETIME;
+	ent->last_move_time = 0;
+
+	//gi.WritePosition (origin);
+	//gi.multicast (ent->s.origin, MULTICAST_PHS);
+
+	//G_FreeEdict (ent);
 }
 
 void RocketInformDanger(edict_t *self)
@@ -675,7 +1021,45 @@ void RocketInformDanger(edict_t *self)
 	}
 
 	VectorMA(self->s.origin, 0.25, self->velocity, org2);
+	// scan for bot's to inform
+	for (i=0; i<num_players; i++)
+	{
+		bot = players[i];
 
+		if (bot->bot_client && (bot->bot_stats->combat < 4))
+			continue;
+
+		if ((fabs(bot->s.origin[0] - self->s.origin[0]) > 300) ||
+			(fabs(bot->s.origin[1] - self->s.origin[1]) > 300))
+			continue;
+
+		// make sure rocket is heading somewhat towards this bot
+		VectorSubtract(org2, bot->s.origin, vec);
+		if (((dist=entdist(bot, self)) - VectorLength(vec)) > 75)
+		{	// yup, inform bot of danger
+			bot->avoid_ent = self;
+		}
+	}
+	self->nextthink = level.time + 0.3;
+}
+
+void am_pod_think (edict_t *self)
+{
+	int	i;
+	edict_t	*bot;
+	vec3_t	org2, vec;
+	float	dist;
+
+/*	if (self->timestamp < (level.time - 5))
+	{
+		G_FreeEdict(self);
+		return;
+	}*/
+
+	self->s.angles[PITCH] -=8;
+	self->s.angles[ROLL] +=8;
+
+	VectorMA(self->s.origin, 0.25, self->velocity, org2);
 	// scan for bot's to inform
 	for (i=0; i<num_players; i++)
 	{
@@ -696,7 +1080,7 @@ void RocketInformDanger(edict_t *self)
 		}
 	}
 
-	self->nextthink = level.time + 0.3;
+	self->nextthink = level.time + 0.1;
 }
 
 void fire_rocket (edict_t *self, vec3_t start, vec3_t dir, int damage, int speed, float damage_radius, int radius_damage)
@@ -734,6 +1118,88 @@ void fire_rocket (edict_t *self, vec3_t start, vec3_t dir, int damage, int speed
 
 	gi.linkentity (rocket);
 }
+
+void fire_am_rocket (edict_t *self, vec3_t start, vec3_t dir, int damage, int speed, float damage_radius, int radius_damage)
+{
+	edict_t	*rocket;
+
+	rocket = G_Spawn();
+	rocket->classname = "am_rocket";
+	VectorCopy (start, rocket->s.origin);
+	VectorCopy (dir, rocket->movedir);
+	vectoangles (dir, rocket->s.angles);
+	VectorScale (dir, speed, rocket->velocity);
+	rocket->movetype = MOVETYPE_FLYMISSILE;
+
+	rocket->clipmask = MASK_SHOT;
+	rocket->solid = SOLID_BBOX;
+	rocket->s.effects |= EF_ROCKET;
+	VectorClear (rocket->mins);
+	VectorClear (rocket->maxs);
+	//rocket->s.modelindex = gi.modelindex ("models/objects/rocket/tris.md2");
+	rocket->s.modelindex = gi.modelindex ("models/objects/bomb/tris.md2");
+	rocket->owner = self;
+	rocket->touch = am_rocket_touch;
+
+	// Eraser: Modified to scan for Bots to inform of danger
+	rocket->timestamp = level.time;
+	rocket->nextthink = level.time + 0.1;
+	rocket->think = RocketInformDanger;
+
+	rocket->dmg = damage;
+	rocket->radius_dmg = radius_damage;
+	rocket->dmg_radius = damage_radius;
+	rocket->s.sound = gi.soundindex ("weapons/rockfly.wav");
+
+	if (self->client)
+		check_dodge (self, rocket->s.origin, dir, speed);
+
+	gi.linkentity (rocket);
+}
+
+void fire_am_pod (edict_t *self, vec3_t start, vec3_t dir, int damage, int speed, float damage_radius, int radius_damage)
+{
+	edict_t	*rocket;
+
+	rocket = G_Spawn();
+	rocket->classname = "am_pod";
+	VectorCopy (start, rocket->s.origin);
+	VectorCopy (dir, rocket->movedir);
+	vectoangles (dir, rocket->s.angles);
+	VectorScale (dir, speed, rocket->velocity);
+	rocket->movetype = MOVETYPE_WALLBOUNCE;
+//	rocket->movetype = MOVETYPE_BOUNCE;
+	rocket->count = 0;
+	rocket->clipmask = MASK_SHOT;
+	rocket->solid = SOLID_BBOX;
+//	rocket->s.effects = RF_FULLBRIGHT | EF_ROTATE;
+	VectorClear (rocket->mins);
+	VectorClear (rocket->maxs);
+	rocket->s.modelindex = gi.modelindex ("models/objects/shocksphere/tris.md2");
+//	rocket->s.modelindex = gi.modelindex (am_pod_mdl->string);
+	rocket->owner = self;
+	rocket->touch = am_pod_touch;
+
+	// Eraser: Modified to scan for Bots to inform of danger
+	rocket->timestamp = level.time;
+	rocket->nextthink = level.time + 0.1;
+	rocket->think = am_pod_think;
+
+	rocket->dmg = damage;
+	rocket->radius_dmg = radius_damage;
+	rocket->dmg_radius = damage_radius;
+//	rocket->s.sound = gi.soundindex ("weapons/rockfly.wav");
+//	rocket->s.sound = gi.soundindex ("makron/bfg_fire.wav");
+//	rocket->s.sound = gi.soundindex ("medic_commander/monsterspawn1.wav");
+//	rocket->s.sound = gi.soundindex ("weapons/disrupt.wav");
+//	rocket->s.sound = gi.soundindex ("weapons/phaloop.wav");
+
+	if (self->client)
+		check_dodge (self, rocket->s.origin, dir, speed);
+
+	gi.linkentity (rocket);
+}
+
 
 
 /*
@@ -1037,6 +1503,8 @@ void fire_bfg (edict_t *self, vec3_t start, vec3_t dir, int damage, int speed, f
 
 void ionripper_sparks (edict_t *self)
 {
+	if (ionripper_extra_sounds->value)
+		gi.sound (self, CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex ("weapons/ionexp.wav"), 1, ATTN_NONE, 0);
 	gi.WriteByte (svc_temp_entity);
 	gi.WriteByte (TE_WELDING_SPARKS);
 	gi.WriteByte (0);
@@ -1065,6 +1533,8 @@ void ionripper_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_t
 
 	if (other->takedamage)
 	{
+		if (ionripper_extra_sounds->value)
+			gi.sound (self, CHAN_NO_PHS_ADD+CHAN_VOICE, gi.soundindex ("weapons/ionhit.wav"), 1, ATTN_NONE, 0);
 		T_Damage (other, self, self->owner, self->velocity, self->s.origin, plane->normal, self->dmg, 1, DAMAGE_ENERGY, MOD_RIPPER);
 
 	}
@@ -1072,7 +1542,6 @@ void ionripper_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_t
 	{
 		return;
 	}
-
 	G_FreeEdict (self);
 }
 

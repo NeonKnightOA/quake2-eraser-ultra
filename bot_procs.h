@@ -147,6 +147,7 @@ qboolean monster_start (edict_t *self);
 qboolean monster_start_go (edict_t *self);
 void	SelectSpawnPoint (edict_t *ent, vec3_t origin, vec3_t angles);
 void Use_Quad (edict_t *ent, gitem_t *item);
+void Use_Double (edict_t *ent, gitem_t *item);
 void ClientDisconnect (edict_t *ent);
 void Use_Plat (edict_t *ent, edict_t *other, edict_t *activator);
 void ShowGun(edict_t *ent);

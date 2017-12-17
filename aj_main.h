@@ -42,6 +42,7 @@ extern	cvar_t	*shard_armor;        // sets amount of armor gained from armor sha
 extern	cvar_t	*power_armor_screen; // sets damage saved per cell
 extern	cvar_t	*power_armor_shield; // sets damage saved per cell
 extern	cvar_t	*dropweapammo;       // percentage of default ammo gained from a dropped weapon
+extern	cvar_t	*allow_func_explosives;
 
 
 
@@ -130,7 +131,7 @@ extern cvar_t *zk_retry;
 
 extern cvar_t	*ttctf;
 
-extern gitem_t *item_phalanx, *item_ionripper, *item_trap, *item_quadfire, *item_magslugs;
+extern gitem_t *item_phalanx, *item_ionripper, *item_trap, *item_quadfire, *item_magslugs, *item_ir_goggles, *item_double, *item_sphere_vengeance, *item_sphere_hunter, *item_sphere_defender, *item_doppleganger;
 
 extern cvar_t *use_rogueplats;
 
@@ -145,8 +146,13 @@ extern cvar_t *invisible_dmstarts;
 
 //ScarFace
 extern cvar_t	*armor_bonus_value; //value of armor shards
+extern cvar_t	*health_bonus_value; //value of armor shards
 extern cvar_t	*powerup_max;
 extern cvar_t	*nuke_max;
+extern cvar_t	*doppleganger_max;
+extern cvar_t	*defender_time;
+extern cvar_t	*vengeance_time;
+extern cvar_t	*hunter_time;
 extern cvar_t	*quad_time;
 extern cvar_t	*inv_time;
 extern cvar_t	*breather_time;

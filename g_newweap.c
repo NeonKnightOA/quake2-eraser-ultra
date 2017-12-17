@@ -1,5 +1,6 @@
 #include "g_local.h"
 #include "aj_weaponbalancing.h" // AJ
+#include "bot_procs.h" //ScarFace
 
 #define INCLUDE_ETF_RIFLE		1
 #define INCLUDE_PROX			1
@@ -16,6 +17,9 @@ extern void droptofloor (edict_t *ent);
 extern void Grenade_Explode (edict_t *ent);
 
 extern void drawbbox (edict_t *ent);
+
+extern qboolean	is_quad;
+extern qboolean	is_double;
 
 #ifdef INCLUDE_ETF_RIFLE
 /*
@@ -133,7 +137,11 @@ void Prox_Explode (edict_t *ent)
 
 	// play quad sound if appopriate
 	if (ent->dmg > prox_damage->value)
-		gi.sound(ent, CHAN_ITEM, gi.soundindex("items/damage3.wav"), 1, ATTN_NORM, 0);
+		//double sound
+		if (ent->dmg < (prox_damage->value * 4))
+			gi.sound(ent, CHAN_ITEM, gi.soundindex("misc/ddamage3.wav"), 1, ATTN_NORM, 0);
+		else if (ent->dmg >= (prox_damage->value * 4)) //quad sound
+			gi.sound(ent, CHAN_ITEM, gi.soundindex("items/damage3.wav"), 1, ATTN_NORM, 0);
 
 	ent->takedamage = DAMAGE_NO;
 	T_RadiusDamage(ent, owner, ent->dmg, ent, prox_radius->value, MOD_PROX);
@@ -469,7 +477,13 @@ void fire_prox (edict_t *self, vec3_t start, vec3_t aimdir, int damage_multiplie
 	edict_t	*prox;
 	vec3_t	dir;
 	vec3_t	forward, right, up;
+	int		damage;
 
+	damage = prox_damage->value;
+	if (is_quad)
+		damage *= 4;
+	if (is_double)
+		damage *= 2;
 	vectoangles2 (aimdir, dir);
 	AngleVectors (dir, forward, right, up);
 
@@ -497,7 +511,8 @@ void fire_prox (edict_t *self, vec3_t start, vec3_t aimdir, int damage_multiplie
 	prox->touch = prox_land;
 //	prox->nextthink = level.time + prox_life->value;
 	prox->think = Prox_Explode;
-	prox->dmg = prox_damage->value*damage_multiplier;
+//	prox->dmg = prox_damage->value*damage_multiplier;
+	prox->dmg = damage;
 	prox->classname = "prox";
 	prox->svflags |= SVF_DAMAGEABLE;
 	prox->flags |= FL_MECHANICAL;
@@ -508,13 +523,13 @@ void fire_prox (edict_t *self, vec3_t start, vec3_t aimdir, int damage_multiplie
 		prox->nextthink = level.time + prox_life->value;
 		break;
 	case 2:
-		prox->nextthink = level.time + 30;
+		prox->nextthink = level.time + prox_life->value;
 		break;
 	case 4:
-		prox->nextthink = level.time + 15;
+		prox->nextthink = level.time + prox_life->value;
 		break;
 	case 8:
-		prox->nextthink = level.time + 10;
+		prox->nextthink = level.time + prox_life->value;
 		break;
 	default:
 //		if ((g_showlogic) && (g_showlogic->value))
@@ -1182,6 +1197,17 @@ void Nuke_Quake (edict_t *self)
 		e->velocity[2] = self->speed * (100.0 / e->mass);
 	}
 
+/*	if (!strcmp(self->classname, "am_pod")) //remove pod after n bounces
+	{
+		if (self->count > am_pod_bounces->value)
+				G_FreeEdict (self);
+		return;  //don't loop
+	}*/
+
+	//keep am rocket from looping explosion
+	if (!strcmp(self->classname, "am_rocket"))
+		G_FreeEdict (self);
+
 	if (level.time < self->timestamp)
 		self->nextthink = level.time + FRAMETIME;
 	else
@@ -1254,10 +1280,20 @@ void Nuke_Think(edict_t *ent)
 {
 	float attenuation, default_atten = 1.8;
 	int		damage_multiplier, muzzleflash;
+	static gitem_t *tech = NULL;
+	tech = item_tech2;
 
 //	gi.dprintf ("player range: %2.2f    damage radius: %2.2f\n", realrange (ent, ent->teammaster), ent->dmg_radius*2);
 
-	damage_multiplier = ent->dmg/NUKE_DAMAGE;
+//	damage_multiplier = ent->dmg/NUKE_DAMAGE;
+	damage_multiplier = 1; //ScarFace modified
+	if (is_quad)
+		damage_multiplier *= 4;
+	if (is_double)
+		damage_multiplier *= 2;
+	if (ent->teammaster->client &&
+		ent->teammaster->client->pers.inventory[ITEM_INDEX(tech)] ) 
+				damage_multiplier *= 2;
 	switch (damage_multiplier)
 	{
 	case 1:
@@ -1274,6 +1310,10 @@ void Nuke_Think(edict_t *ent)
 		break;
 	case 8:
 		attenuation = default_atten/5.0;
+		muzzleflash = MZ_NUKE8;
+		break;
+	case 16:
+		attenuation = default_atten/7.0;
 		muzzleflash = MZ_NUKE8;
 		break;
 	default:
@@ -1357,7 +1397,7 @@ void nuke_bounce (edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *sur
 }
 
 
-// extern byte P_DamageModifier(edict_t *ent);
+ extern byte P_DamageModifier(edict_t *ent);
 
 void fire_nuke (edict_t *self, vec3_t start, vec3_t aimdir, int speed)
 {
@@ -1366,7 +1406,7 @@ void fire_nuke (edict_t *self, vec3_t start, vec3_t aimdir, int speed)
 	vec3_t	forward, right, up;
 	int		damage_modifier;
 
-//	damage_modifier = (int) P_DamageModifier (self);
+	damage_modifier = (int) P_DamageModifier (self);
 	damage_modifier = 4;
 
 	vectoangles2 (aimdir, dir);
@@ -1402,7 +1442,7 @@ void fire_nuke (edict_t *self, vec3_t start, vec3_t aimdir, int speed)
 	if (damage_modifier == 1)
 		nuke->dmg_radius = nuke_radius->value;
 	else
-		nuke->dmg_radius = NUKE_RADIUS + NUKE_RADIUS*(0.25*(float)damage_modifier);
+		nuke->dmg_radius = nuke_radius->value + nuke_radius->value*(0.25*(float)damage_modifier);
 	// this yields 1.0, 1.5, 2.0, 3.0 times radius
 	
 //	if ((g_showlogic) && (g_showlogic->value))
@@ -1453,8 +1493,13 @@ void tesla_remove (edict_t *self)
 	self->enemy = NULL;
 
 	// play quad sound if quadded and an underwater explosion
-	if ((self->dmg_radius) && (self->dmg > (tesla_damage->value*TESLA_EXPLOSION_DAMAGE_MULT)))
-		gi.sound(self, CHAN_ITEM, gi.soundindex("items/damage3.wav"), 1, ATTN_NORM, 0);
+//	if ((self->dmg_radius) && (self->dmg > (tesla_damage->value*TESLA_EXPLOSION_DAMAGE_MULT)))
+	if (self->dmg > tesla_damage->value)
+		//double sound
+		if (self->dmg < (tesla_damage->value * 4))
+			gi.sound(self, CHAN_ITEM, gi.soundindex("misc/ddamage3.wav"), 1, ATTN_NORM, 0);
+		else if (self->dmg >= (tesla_damage->value * 4)) //quad sound
+			gi.sound(self, CHAN_ITEM, gi.soundindex("items/damage3.wav"), 1, ATTN_NORM, 0);
 
 	Grenade_Explode(self);
 }
@@ -1502,12 +1547,21 @@ void tesla_think_active (edict_t *self)
 			break;
 
 		hit=touch[i];
-		if(!hit->inuse)
+		if (!hit->inuse)
 			continue;
-		if(hit == self)
+		if (hit == self)
 			continue;
-		if(hit->health < 1)
+		if (hit->health < 1)
 			continue;
+		if (!strcmp(hit->classname, "hook")) //ignore offhand grapple
+			continue;
+		if (!strcmp(hit->classname, "doppleganger")) //ignore doppleganger
+			continue;
+		if (hit == self->teammaster) //ScarFace- ignore owner
+			continue;
+		if (ctf->value && hit->client)
+			if (hit->client->resp.ctf_team == self->teammaster->client->resp.ctf_team) //ScarFace- ignore teammates
+				continue;
 		// don't hit clients in single-player or coop
 		if(hit->client)
 			if (coop->value || !deathmatch->value)
@@ -1522,7 +1576,11 @@ void tesla_think_active (edict_t *self)
 			
 			// PMM - play quad sound if it's above the "normal" damage
 			if (self->dmg > tesla_damage->value)
-				gi.sound(self, CHAN_ITEM, gi.soundindex("items/damage3.wav"), 1, ATTN_NORM, 0);
+				//double sound
+				if (self->dmg < (tesla_damage->value * 4))
+					gi.sound(self, CHAN_ITEM, gi.soundindex("misc/ddamage3.wav"), 1, ATTN_NORM, 0);
+				else if (self->dmg >= (tesla_damage->value * 4)) //quad sound
+					gi.sound(self, CHAN_ITEM, gi.soundindex("items/damage3.wav"), 1, ATTN_NORM, 0);
 
 			// PGM - don't do knockback to walking monsters
 			if((hit->svflags & SVF_MONSTER) && !(hit->flags & (FL_FLY|FL_SWIM)))
@@ -1611,8 +1669,8 @@ void tesla_activate (edict_t *self)
 
 	VectorClear (self->s.angles);
 	// clear the owner if in deathmatch
-	if (deathmatch->value)
-		self->owner = NULL;
+//	if (deathmatch->value)
+//		self->owner = NULL;
 	self->teamchain = trigger;
 	self->think = tesla_think_active;
 	self->nextthink = level.time + FRAMETIME;
@@ -1684,7 +1742,13 @@ void fire_tesla (edict_t *self, vec3_t start, vec3_t aimdir, int damage_multipli
 	edict_t	*tesla;
 	vec3_t	dir;
 	vec3_t	forward, right, up;
+	int		damage;
 
+	damage = tesla_damage->value;
+	if (is_quad)
+		damage *= 4;
+	if (is_double)
+		damage *= 2;
 	vectoangles2 (aimdir, dir);
 	AngleVectors (dir, forward, right, up);
 
@@ -1723,7 +1787,8 @@ void fire_tesla (edict_t *self, vec3_t start, vec3_t aimdir, int damage_multipli
 
 	tesla->takedamage = DAMAGE_YES;
 	tesla->die = tesla_die;
-	tesla->dmg = tesla_damage->value*damage_multiplier;
+//	tesla->dmg = tesla_damage->value*damage_multiplier;
+	tesla->dmg = damage;
 //	tesla->dmg = 0;
 	tesla->classname = "tesla";
 	tesla->svflags |= SVF_DAMAGEABLE;

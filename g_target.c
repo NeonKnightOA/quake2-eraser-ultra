@@ -371,6 +371,8 @@ void use_target_spawner (edict_t *self, edict_t *other, edict_t *activator)
 	gi.linkentity (ent);
 	if (self->speed)
 		VectorCopy (self->movedir, ent->velocity);
+
+	ent->s.renderfx |= RF_IR_VISIBLE;		//PGM
 }
 
 void SP_target_spawner (edict_t *self)

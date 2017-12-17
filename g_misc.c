@@ -4,7 +4,8 @@
 #include "p_trail.h"
 #include "e_hook.h"
 #include "e_grapple.h"
-
+#include "aj_weaponbalancing.h"
+#include "aj_main.h"
 /*QUAKED func_group (0 0 0) ?
 Used to group brushes together just for editor convenience.
 */
@@ -87,6 +88,22 @@ void gib_think (edict_t *self)
 void gib_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf)
 {
 	vec3_t	normal_angles, right;
+	float  r, s;
+
+	r = random();
+
+	if (mega_gibs->value == 1)
+	{
+		r = random();
+		s = random();
+		if ((r <= 0.33) && (s >= 0.5))
+			gi.sound (self, CHAN_VOICE, gi.soundindex ("misc/fhit1.wav"), 1, ATTN_NORM, 0);
+		else if ((r <= 0.67) && (s >= 0.5))
+			gi.sound (self, CHAN_VOICE, gi.soundindex ("misc/fhit2.wav"), 1, ATTN_NORM, 0);
+		else if (s >= 0.5)
+			gi.sound (self, CHAN_VOICE, gi.soundindex ("misc/fhit3.wav"), 1, ATTN_NORM, 0);
+		//	gi.dprintf ("played gib hit sound\n");
+	}
 
 	if (!self->groundentity)
 		return;
@@ -95,8 +112,6 @@ void gib_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_t *surf
 
 	if (plane)
 	{
-		gi.sound (self, CHAN_VOICE, gi.soundindex ("misc/fhit3.wav"), 1, ATTN_NORM, 0);
-
 		vectoangles (plane->normal, normal_angles);
 		AngleVectors (normal_angles, NULL, right, NULL);
 		vectoangles (right, self->s.angles);
@@ -159,7 +174,7 @@ void ThrowGib (edict_t *self, char *gibname, int damage, int type)
 	float	vscale;
 
 	gib = G_Spawn();
-
+	gib->classname = "gib";
 	VectorScale (self->size, 0.5, size);
 	VectorAdd (self->absmin, size, origin);
 	gib->s.origin[0] = origin[0] + crandom() * size[0];
@@ -167,17 +182,31 @@ void ThrowGib (edict_t *self, char *gibname, int damage, int type)
 	gib->s.origin[2] = origin[2] + crandom() * size[2];
 
 	gi.setmodel (gib, gibname);
+	if (mega_gibs->value == 1) //don't get stuck in corners, give bbox
+	{
+		VectorSet (self->mins, -16, -16, 0);
+		VectorSet (self->maxs, 16, 16, 16);
+	}
 	gib->solid = SOLID_NOT;
 	gib->s.effects |= EF_GIB;
 	gib->flags |= FL_NO_KNOCKBACK;
 	gib->takedamage = DAMAGE_YES;
 	gib->die = gib_die;
+	gib->touch = gib_touch;
 
 	if (type == GIB_ORGANIC)
 	{
-		gib->movetype = MOVETYPE_TOSS;
-		gib->touch = gib_touch;
-		vscale = 0.5;
+		//bouncy ovekill gibs
+		if (mega_gibs->value == 1)
+		{
+			gib->movetype = MOVETYPE_BOUNCE;
+			vscale = 1.0;
+		}
+		else //normal
+		{
+			gib->movetype = MOVETYPE_TOSS;
+			vscale = 0.5;
+		}
 	}
 	else
 	{
@@ -193,7 +222,14 @@ void ThrowGib (edict_t *self, char *gibname, int damage, int type)
 	gib->avelocity[2] = random()*600;
 
 	gib->think = G_FreeEdict;
-	gib->nextthink = level.time + 2 + random()*1;
+	if (mega_gibs->value == 1) //overkill gibs stick around longer
+		gib->nextthink = level.time + 60 + random()*1;
+	else  //normal
+		gib->nextthink = level.time + 5 + random()*1;
+
+//PGM
+	gib->s.renderfx |= RF_IR_VISIBLE;
+//PGM
 
 	gi.linkentity (gib);
 }
@@ -203,6 +239,7 @@ void ThrowHead (edict_t *self, char *gibname, int damage, int type)
 	vec3_t	vd;
 	float	vscale;
 
+	self->classname = "gib";
 	self->s.skinnum = 0;
 	self->s.frame = 0;
 	VectorClear (self->mins);
@@ -218,6 +255,7 @@ void ThrowHead (edict_t *self, char *gibname, int damage, int type)
 	self->svflags &= ~SVF_MONSTER;
 	self->takedamage = DAMAGE_YES;
 	self->die = gib_die;
+	self->touch = gib_touch;
 
 	if (type == GIB_ORGANIC)
 	{
@@ -238,7 +276,11 @@ void ThrowHead (edict_t *self, char *gibname, int damage, int type)
 	self->avelocity[YAW] = crandom()*600;
 
 	self->think = G_FreeEdict;
-	self->nextthink = level.time + 10 + random()*10;
+	self->nextthink = level.time + 600 + random()*10;
+
+//PGM
+	self->s.renderfx |= RF_IR_VISIBLE;
+//PGM
 
 	gi.linkentity (self);
 }
@@ -296,7 +338,11 @@ void ThrowGibACID (edict_t *self, char *gibname, int damage, int type)
 	gib->avelocity[2] = random()*600;
 
 	gib->think = G_FreeEdict;
-	gib->nextthink = level.time + 10 + random()*10;
+	gib->nextthink = level.time + 60 + random()*10;
+
+//PGM
+	gib->s.renderfx |= RF_IR_VISIBLE;
+//PGM
 
 	gi.linkentity (gib);
 }
@@ -349,7 +395,11 @@ void ThrowHeadACID (edict_t *self, char *gibname, int damage, int type)
 	self->avelocity[YAW] = crandom()*600;
 
 	self->think = G_FreeEdict;
-	self->nextthink = level.time + 10 + random()*10;
+	self->nextthink = level.time + 600 + random()*10;
+
+//PGM
+	self->s.renderfx |= RF_IR_VISIBLE;
+//PGM
 
 	gi.linkentity (self);
 }
@@ -359,6 +409,7 @@ void ThrowClientHead (edict_t *self, int damage)
 {
 	vec3_t	vd;
 	char	*gibname;
+//	edict_t *gib;
 
 	if (rand()&1)
 	{
@@ -371,17 +422,23 @@ void ThrowClientHead (edict_t *self, int damage)
 		self->s.skinnum = 0;
 	}
 
+	self->classname = "gib";
+	self->s.modelindex2 = 0;
 	self->s.origin[2] += 32;
 	self->s.frame = 0;
-	gi.setmodel (self, gibname);
+	//gi.setmodel (self, gibname);
 	VectorSet (self->mins, -16, -16, 0);
 	VectorSet (self->maxs, 16, 16, 16);
+	self->s.modelindex = gi.modelindex(gibname);
 
 	self->takedamage = DAMAGE_NO;
 	self->solid = SOLID_NOT;
-	self->s.effects = EF_GIB;
+	self->s.effects |= EF_GIB;
 	self->s.sound = 0;
 	self->flags |= FL_NO_KNOCKBACK;
+
+	//self->die = gib_die;
+	self->touch = gib_touch;
 
 	self->movetype = MOVETYPE_BOUNCE;
 	VelocityForDamage (damage, vd);
@@ -392,8 +449,39 @@ void ThrowClientHead (edict_t *self, int damage)
 		self->client->anim_priority = ANIM_DEATH;
 		self->client->anim_end = self->s.frame;
 	}
+	else
+	{
+		self->think = NULL;
+		self->nextthink = 0;
+	}
+
+	self->think = G_FreeEdict;
+	self->nextthink = level.time + 1800 + (random()*10);
+//PGM
+	self->s.renderfx |= RF_IR_VISIBLE;
+//PGM
 
 	gi.linkentity (self);
+}
+
+void Cmd_PurgeGibs_f (edict_t *ent)
+{
+	edict_t	*mapent = NULL;
+	int i;
+
+	gi.dprintf ("Purging gibs\n");
+	mapent = g_edicts+1; // skip the worldspawn
+	// cycle through all ents to find gibs
+	for (i = 1; i < globals.num_edicts; i++, mapent++)
+	{
+		if (!mapent->classname)
+			continue;
+		if (!strcmp(mapent->classname, "gib"))
+			G_FreeEdict (mapent);
+//		else
+//			mapent = NULL;
+	}
+
 }
 
 
@@ -431,6 +519,11 @@ void ThrowDebris (edict_t *self, char *modelname, float speed, vec3_t origin)
 	chunk->classname = "debris";
 	chunk->takedamage = DAMAGE_YES;
 	chunk->die = debris_die;
+
+//PGM
+	chunk->s.renderfx |= RF_IR_VISIBLE;
+//PGM
+
 	gi.linkentity (chunk);
 }
 
@@ -887,6 +980,10 @@ mass defaults to 75.  This determines how much debris is emitted when
 it explodes.  You get one large chunk per 100 of mass (up to 8) and
 one small chunk per 25 of mass (up to 16).  So 800 gives the most.
 */
+void func_explosive_toggle (edict_t *self);
+void func_explosive_killbox (edict_t *self);
+void SP_func_explosive (edict_t *self);
+
 void func_explosive_explode (edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, vec3_t point)
 {
 	vec3_t	origin;
@@ -894,20 +991,35 @@ void func_explosive_explode (edict_t *self, edict_t *inflictor, edict_t *attacke
 	vec3_t	size;
 	int		count;
 	int		mass;
+	edict_t *tempent;
+
+	//ScarFace- we use tempent instead of self here to avoid modifying func_explosive data fields
+	tempent = G_Spawn();
+	VectorCopy (self->mins, tempent->mins);
+	VectorCopy (self->maxs, tempent->maxs);
+	VectorCopy (self->absmin, tempent->absmin);
+	VectorCopy (self->absmax, tempent->absmax);
+	VectorCopy (self->size, tempent->size);
 
 	// bmodel origins are (0 0 0), we need to adjust that here
 	VectorScale (self->size, 0.5, size);
 	VectorAdd (self->absmin, size, origin);
-	VectorCopy (origin, self->s.origin);
+//	VectorCopy (origin, self->s.origin);
+	VectorCopy (origin, tempent->s.origin);
+	gi.linkentity (tempent);
 
 	self->takedamage = DAMAGE_NO;
 
 	if (self->dmg)
-		T_RadiusDamage (self, attacker, self->dmg, NULL, self->dmg+40, MOD_EXPLOSIVE);
+	//	T_RadiusDamage (self, attacker, self->dmg, NULL, self->dmg+40, MOD_EXPLOSIVE);
+		T_RadiusDamage (tempent, attacker, self->dmg, NULL, self->dmg+40, MOD_EXPLOSIVE);
 
-	VectorSubtract (self->s.origin, inflictor->s.origin, self->velocity);
-	VectorNormalize (self->velocity);
-	VectorScale (self->velocity, 150, self->velocity);
+//	VectorSubtract (self->s.origin, inflictor->s.origin, self->velocity);
+//	VectorNormalize (self->velocity);
+//	VectorScale (self->velocity, 150, self->velocity);
+	VectorSubtract (tempent->s.origin, inflictor->s.origin, tempent->velocity);
+	VectorNormalize (tempent->velocity);
+	VectorScale (tempent->velocity, 150, tempent->velocity);
 
 	// start chunks towards the center
 	VectorScale (size, 0.5, size);
@@ -927,7 +1039,8 @@ void func_explosive_explode (edict_t *self, edict_t *inflictor, edict_t *attacke
 			chunkorigin[0] = origin[0] + crandom() * size[0];
 			chunkorigin[1] = origin[1] + crandom() * size[1];
 			chunkorigin[2] = origin[2] + crandom() * size[2];
-			ThrowDebris (self, "models/objects/debris1/tris.md2", 1, chunkorigin);
+		//	ThrowDebris (self, "models/objects/debris1/tris.md2", 1, chunkorigin);
+			ThrowDebris (tempent, "models/objects/debris1/tris.md2", 1, chunkorigin);
 		}
 	}
 
@@ -940,15 +1053,31 @@ void func_explosive_explode (edict_t *self, edict_t *inflictor, edict_t *attacke
 		chunkorigin[0] = origin[0] + crandom() * size[0];
 		chunkorigin[1] = origin[1] + crandom() * size[1];
 		chunkorigin[2] = origin[2] + crandom() * size[2];
-		ThrowDebris (self, "models/objects/debris2/tris.md2", 2, chunkorigin);
+	//	ThrowDebris (self, "models/objects/debris2/tris.md2", 2, chunkorigin);
+		ThrowDebris (tempent, "models/objects/debris2/tris.md2", 2, chunkorigin);
 	}
 
 	G_UseTargets (self, attacker);
 
 	if (self->dmg)
-		BecomeExplosion1 (self);
-	else
-		G_FreeEdict (self);
+	{	//ScarFace- don't become explosion, just spawn one
+		gi.WriteByte (svc_temp_entity);
+		gi.WriteByte (TE_EXPLOSION1);
+		gi.WritePosition (tempent->s.origin);
+		gi.multicast (tempent->s.origin, MULTICAST_PVS);
+	//	BecomeExplosion1 (self);
+	}
+//	else
+//		G_FreeEdict (self);
+	//disappear
+//	self->flags |= FL_RESPAWN;
+	func_explosive_toggle (self);
+	//set to reappear
+	self->think = func_explosive_toggle;
+	self->nextthink = level.time + 30;
+	tempent->think = func_explosive_killbox;
+	tempent->nextthink = level.time + 30;
+	//end ScarFace
 }
 
 void func_explosive_use(edict_t *self, edict_t *other, edict_t *activator)
@@ -965,14 +1094,43 @@ void func_explosive_spawn (edict_t *self, edict_t *other, edict_t *activator)
 	gi.linkentity (self);
 }
 
+void func_explosive_toggle (edict_t *self)
+{
+	if (self->solid == SOLID_NOT)
+	{
+	//	gi.dprintf("func_explosive respawning\n");
+		self->solid = SOLID_BSP;
+		self->svflags &= ~SVF_NOCLIENT;
+	//	KillBox (self);
+		if (self->max_health) //restore health
+			self->health = self->max_health;
+		if (self->use != func_explosive_use) //make damageable again
+			self->takedamage = DAMAGE_YES;
+	//	self->s.event = EV_ITEM_RESPAWN;
+	}
+	else
+	{
+		self->solid = SOLID_NOT;
+		self->svflags |= SVF_NOCLIENT;
+	}
+	gi.linkentity (self);
+}
+
+void func_explosive_killbox (edict_t *self)
+{
+	self->s.event = EV_ITEM_RESPAWN;
+	KillBox (self);
+	G_FreeEdict (self);
+}
+
 void SP_func_explosive (edict_t *self)
 {
-	if (deathmatch->value)
+	//ScarFace- allow this entity
+	if (!allow_func_explosives->value)
 	{	// auto-remove for deathmatch
 		G_FreeEdict (self);
 		return;
 	}
-
 	self->movetype = MOVETYPE_PUSH;
 
 	gi.modelindex ("models/objects/debris1/tris.md2");
@@ -982,8 +1140,8 @@ void SP_func_explosive (edict_t *self)
 
 	if (self->spawnflags & 1)
 	{
-		self->svflags |= SVF_NOCLIENT;
 		self->solid = SOLID_NOT;
+		self->svflags |= SVF_NOCLIENT;
 		self->use = func_explosive_spawn;
 	}
 	else
@@ -1002,6 +1160,7 @@ void SP_func_explosive (edict_t *self)
 	{
 		if (!self->health)
 			self->health = 100;
+		self->max_health = self->health; //ScarFace- copy health for respawn
 		self->die = func_explosive_explode;
 		self->takedamage = DAMAGE_YES;
 	}
@@ -2022,8 +2181,21 @@ void teleporter_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_
 	if (strcmp(other->classname,"hook") == 0)
 		return;
 
-	abandon_hook_reset(other->client->hook);
 
+//ZOID
+	CTFPlayerResetGrapple(other);
+//ZOID
+
+// AJ
+	 //Expert: If a hook is out, get rid of it
+	if (Is_Grappling(other->client)) //ScarFace- This case check fixes the crash!!!!!!
+	{  
+		if  (hook_style->value == 1)
+			abandon_hook_reset(other->client->hook);
+		else if  (hook_style->value == 1)
+			Release_Grapple(other->client->hook);
+	}
+// end AJ
 
 	dest = G_Find (NULL, FOFS(targetname), self->target);
 	if (!dest)
@@ -2031,10 +2203,6 @@ void teleporter_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_
 		gi.dprintf ("Couldn't find destination\n");
 		return;
 	}
-
-//ZOID
-	CTFPlayerResetGrapple(other);
-//ZOID
 
 //	self->owner->nextthink = level.time + 0.2;
 //	dest->nextthink = level.time + 0.2;
@@ -2097,14 +2265,6 @@ void teleporter_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_
 
 	// kill anything at the destination
 	KillBox (other);
-
-// AJ
-	// Expert: If a hook is out, get rid of it
-	if (Is_Grappling(other->client)) {
-		Release_Grapple(other->client->hook);
-	}
-// end AJ
-
 
 	gi.linkentity (other);
 

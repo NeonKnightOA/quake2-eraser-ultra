@@ -1,7 +1,7 @@
 // g_phys.c
 
 #include "g_local.h"
-
+#include "aj_weaponbalancing.h"
 /*
 
 
@@ -222,6 +222,12 @@ int SV_FlyMove (edict_t *ent, float time, int mask)
 				ent->groundentity = hit;
 				ent->groundentity_linkcount = hit->linkcount;
 			}
+/*			if ( (hit->solid == SOLID_BBOX) && (!strcmp(self->classname, "am_pod")))
+			{
+				ent->groundentity = hit;
+				ent->groundentity_linkcount = hit->linkcount;
+			}
+*/
 		}
 		else if (!trace.plane.normal[2])
 		{
@@ -292,6 +298,8 @@ int SV_FlyMove (edict_t *ent, float time, int mask)
 			CrossProduct (planes[0], planes[1], dir);
 			d = DotProduct (dir, ent->velocity);
 			VectorScale (dir, d, ent->velocity);
+			if (!strcmp(ent->classname, "am_pod"))
+				gi.dprintf ("Changing pod speed\n");
 		}
 
 //
@@ -672,6 +680,10 @@ void SV_Physics_Toss (edict_t *ent)
 	qboolean	wasinwater;
 	qboolean	isinwater;
 	vec3_t		old_origin;
+//	vec3_t		curvelocity;
+//	float		curspeed, speed_diff;
+
+	float  r, s;
 
 // regular thinking
 	SV_RunThink (ent);
@@ -697,11 +709,14 @@ void SV_Physics_Toss (edict_t *ent)
 	SV_CheckVelocity (ent);
 
 // add gravity
+	if (!strcmp(ent->classname, "am_pod") && (ent->count > 0))
+		SV_AddGravity (ent);
 	if (ent->movetype != MOVETYPE_FLY
 	&& ent->movetype != MOVETYPE_FLYMISSILE
 	// RAFAEL
 	// move type for rippergun projectile
-	&& ent->movetype != MOVETYPE_WALLBOUNCE)
+	&& ent->movetype != MOVETYPE_WALLBOUNCE
+	&& strcmp(ent->classname, "am_pod") != 0)
 		SV_AddGravity (ent);
 
 // move angles
@@ -710,36 +725,89 @@ void SV_Physics_Toss (edict_t *ent)
 // move origin
 	VectorScale (ent->velocity, FRAMETIME, move);
 	trace = SV_PushEntity (ent, move);
+
 	if (!ent->inuse)
 		return;
-
+	isinwater = ent->watertype & MASK_WATER;
 	if (trace.fraction < 1)
 	{
 		// RAFAEL
-		if (ent->movetype == MOVETYPE_WALLBOUNCE)
+//		if (ent->movetype == MOVETYPE_WALLBOUNCE)
+		if (ent->movetype == MOVETYPE_WALLBOUNCE || (!strcmp(ent->classname, "am_pod") && ent->count == 0))
 			backoff = 2.0;
+		else if (!strcmp(ent->classname, "am_pod"))
+			backoff = 1.8;
 		// RAFAEL ( else )		
 		else if (ent->movetype == MOVETYPE_BOUNCE)
+		{
 			backoff = 1.5;
+			//ScarFace- mega gibs splattering sounds
+			if (!strcmp(ent->classname, "gib") && (mega_gibs->value == 1) && (!isinwater))
+			{
+				r = random();
+				s = random();
+				if ((r <= 0.33) && (s >= 0.5))
+					gi.sound (ent, CHAN_VOICE, gi.soundindex ("misc/fhit1.wav"), 1, ATTN_NORM, 0);
+				else if ((r <= 0.67) && (s >= 0.5))
+					gi.sound (ent, CHAN_VOICE, gi.soundindex ("misc/fhit2.wav"), 1, ATTN_NORM, 0);
+				else if (s >= 0.5)
+					gi.sound (ent, CHAN_VOICE, gi.soundindex ("misc/fhit3.wav"), 1, ATTN_NORM, 0);
+			//	gi.dprintf ("played gib hit sound\n");
+			}
+		}
 		else
 			backoff = 1;
 
 		ClipVelocity (ent->velocity, trace.plane.normal, ent->velocity, backoff);
 
+		//reset antimatter pod's speed
+/*		if (!strcmp(ent->classname, "am_pod"))
+		{
+			VectorCopy (ent->velocity, curvelocity);
+			//find overall speed using pythagorean vector thingy
+			curspeed = sqrt( curvelocity[0]*curvelocity[0] + curvelocity[1]*curvelocity[1] + curvelocity[2]*curvelocity[2] );
+			if (curspeed < am_pod_speed->value) //check for decrease
+			{
+				if (curspeed != 0)
+				{
+//					gi.dprintf ("Correcting pod speed\n");
+					speed_diff = am_pod_speed->value / curspeed; //get ratio
+					VectorScale (ent->velocity, speed_diff, ent->velocity);
+				}
+				else
+					gi.dprintf ("Pod speed is 0, can't divide!!\n");
+			}
+		}
+*/
 		// RAFAEL
-		if (ent->movetype == MOVETYPE_WALLBOUNCE)
+//		if (ent->movetype == MOVETYPE_WALLBOUNCE)
+		if (ent->movetype == MOVETYPE_WALLBOUNCE) //|| (!strcmp(ent->classname, "am_pod")))
 			vectoangles (ent->velocity, ent->s.angles);
 
-	// stop if on ground
+		// stop if on ground
 		// RAFAEL
 		if (trace.plane.normal[2] > 0.7 && ent->movetype != MOVETYPE_WALLBOUNCE)
 		{		
-			if (ent->velocity[2] < 60 || ent->movetype != MOVETYPE_BOUNCE )
+			if ((strcmp(ent->classname, "am_pod") != 0) && (ent->velocity[2] < 60 || ent->movetype != MOVETYPE_BOUNCE))
 			{
 				ent->groundentity = trace.ent;
 				ent->groundentity_linkcount = trace.ent->linkcount;
 				VectorCopy (vec3_origin, ent->velocity);
 				VectorCopy (vec3_origin, ent->avelocity);
+				//ScarFace- mega gibs splattering soundsbsgi->value == 1) && (!isinwater))
+				if (!strcmp(ent->classname, "gib") && (mega_gibs->value == 1) && (!isinwater))
+				{
+					r = random();
+					s = random();
+
+					if ((r <= 0.33) && (s >= 0.5))
+						gi.sound (ent, CHAN_VOICE, gi.soundindex ("misc/fhit1.wav"), 1, ATTN_NORM, 0);
+					else if ((r <= 0.67) && (s >= 0.5))
+						gi.sound (ent, CHAN_VOICE, gi.soundindex ("misc/fhit2.wav"), 1, ATTN_NORM, 0);
+					else if (s >= 0.5)
+						gi.sound (ent, CHAN_VOICE, gi.soundindex ("misc/fhit3.wav"), 1, ATTN_NORM, 0);
+				//	gi.dprintf ("played gib hit sound\n");
+				}
 			}
 		}
 
@@ -758,9 +826,11 @@ void SV_Physics_Toss (edict_t *ent)
 		ent->waterlevel = 0;
 
 	if (!wasinwater && isinwater)
-		gi.positioned_sound (old_origin, g_edicts, CHAN_AUTO, gi.soundindex("misc/h2ohit1.wav"), 1, 1, 0);
+		if (strcmp(ent->classname, "hook") != 0)
+			gi.positioned_sound (old_origin, g_edicts, CHAN_AUTO, gi.soundindex("misc/h2ohit1.wav"), 1, 1, 0);
 	else if (wasinwater && !isinwater)
-		gi.positioned_sound (ent->s.origin, g_edicts, CHAN_AUTO, gi.soundindex("misc/h2ohit1.wav"), 1, 1, 0);
+		if (strcmp(ent->classname, "hook") != 0)
+			gi.positioned_sound (ent->s.origin, g_edicts, CHAN_AUTO, gi.soundindex("misc/h2ohit1.wav"), 1, 1, 0);
 
 // move teamslaves
 	for (slave = ent->teamchain; slave; slave = slave->teamchain)
@@ -768,6 +838,26 @@ void SV_Physics_Toss (edict_t *ent)
 		VectorCopy (ent->s.origin, slave->s.origin);
 		gi.linkentity (slave);
 	}
+	//reset antimatter pod's speed
+/*	if (!strcmp(ent->classname, "am_pod"))
+	{
+		VectorCopy (ent->velocity, curvelocity);
+		//find overall speed using pythagorean vector thingy
+		curspeed = sqrt( curvelocity[0]*curvelocity[0] + curvelocity[1]*curvelocity[1] + curvelocity[2]*curvelocity[2] );
+		if (curspeed < am_pod_speed->value) //check for decrease
+		{
+			if (curspeed != 0)
+			{
+//				gi.dprintf ("Correcting pod speed\n");
+				speed_diff = am_pod_speed->value / curspeed; //get ratio
+				VectorScale (ent->velocity, speed_diff, ent->velocity);
+			}
+			else
+				gi.dprintf ("Pod speed is 0, can't divide!!\n");
+
+		}
+	}
+*/
 }
 
 /*

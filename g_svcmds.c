@@ -67,6 +67,11 @@ void	Svcmd_Blueteam_f (void)
 {
 	int i=2;
 
+	if (!ctf->value) //ScarFace- only allow this command when in ctf mode
+	{
+		gi.dprintf ("Commmand only available in CTF mode\n");
+		return;
+	}
 	force_team = CTF_TEAM2;
 	while (i < gi.argc())
 	{
@@ -83,6 +88,11 @@ void	Svcmd_Redteam_f (void)
 {
 	int i=2;
 
+	if (!ctf->value) //ScarFace- only allow this command when in ctf mode
+	{
+		gi.dprintf ("Commmand only available in CTF mode\n");
+		return;
+	}
 	force_team = CTF_TEAM1;
 	while (i < gi.argc())
 	{
@@ -98,7 +108,12 @@ void	Svcmd_Redteam_f (void)
 void	Svcmd_Greenteam_f (void)
 {
 	int i=2;
-
+	
+	if (!ttctf->value) //ScarFace- only allow this command when in 3tctf mode
+	{
+		gi.dprintf ("Commmand only available in 3TCTF mode\n");
+		return;
+	}
 	force_team = CTF_TEAM3;
 	while (i < gi.argc())
 	{

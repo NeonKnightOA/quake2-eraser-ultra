@@ -369,7 +369,7 @@ void Pull_Grapple (edict_t *player)
 	vec_t length;
 
 	// unit vector in the direction of the hook from the player
-	VectorSubtract(player->client->hook->s.origin, player->s.origin, hookDir);
+	VectorSubtract(player->client->hook->s.origin, player->s.origin, hookDir); //ScarFace- this was where the the hook and teleport crash happened
 	length = VectorNormalize(hookDir);
 
 	// make the player's velocity a vector toward the hook

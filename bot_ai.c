@@ -102,16 +102,18 @@ bot_roam
 */
 void bot_roam (edict_t *self, int no_paths)
 {
-	edict_t		*search, *closest, /**enemy,*/ *closest_nonvisible=NULL, *save_goal=NULL, *save_movetarget=NULL;
+	edict_t		*search, *closest, /*enemy,*/ *closest_nonvisible=NULL, *save_goal=NULL, *save_movetarget=NULL;
 	float		closest_dist, this_dist, nonvis_dist=999999;
 	int			player_index = 0;
 	float		save_suicide_time;
 	int			i;
 	int n, carrying_flag;
-	edict_t *flag;
+	edict_t		*flag;
 	int			flaggoal=false;
-
 //	vec3_t		vec;
+	edict_t		*mapent = NULL; //ScarFace
+	int			dopple_dist; //closest_dopple_dist; //ScarFace
+	int j;
 
 	if (no_paths)
 	{
@@ -127,7 +129,6 @@ void bot_roam (edict_t *self, int no_paths)
 
 	save_suicide_time = self->bored_suicide_time;
 	self->bored_suicide_time = -1;		// restored only if not found anything
-
 
 	// look for a visible enemy
 	closest = closest_nonvisible = NULL;
@@ -189,6 +190,37 @@ void bot_roam (edict_t *self, int no_paths)
 		}
 	}
 
+	//ScarFace- look for doppleganger to attack
+	mapent = g_edicts+1; // skip the worldspawn
+	for (j = 1; j < globals.num_edicts; j++, mapent++)
+	{
+		if (!mapent->classname)
+			continue;
+		if (!strcmp(mapent->classname, "doppleganger"))
+		{
+//			gi.dprintf("Found doppleganger\n");
+			dopple_dist = entdist(self, mapent);
+			if ( (dopple_dist < closest_dist) 
+			//	&& (mapent->light_level > 5)
+				&& visible(self, mapent)
+				&& CanSee(self, mapent)
+				&& !SameTeam(self, mapent->teammaster) )
+			{
+				float r1;
+//				gi.dprintf("Can attack doppleganger\n");
+
+				r1 = random();
+				if (r1 <= 0.50) //50% chance of attacking doppleganger
+				{
+//					gi.dprintf("Attacking %s's doppleganger\n", mapent->teammaster->client->pers.netname);
+					self->enemy = mapent;
+					closest_dist = dopple_dist;
+				}
+			}
+		}
+	}
+
+
 	if (roam_calls_this_frame > 10)	// only go beyond this point a few times per server frame
 		return;
 
@@ -209,7 +241,7 @@ void bot_roam (edict_t *self, int no_paths)
 			flag = flag1_ent;
 		else if (self->client->resp.ctf_team == CTF_TEAM2)
 			flag = flag2_ent;
-		else flag = flag3_ent;
+		else flag = flag3_ent;  //AJ
 
 		if (self->enemy && (entdist(self, self->enemy) < 384) && (self->health > 25) && (self->bot_fire != botBlaster))
 			return;		// we don't really need anything, and enemy is close
@@ -421,14 +453,18 @@ void bot_run (edict_t *self)
 
 	// fix: somehow non-client's are becoming enemies, which causes crashes
 	if (self->enemy && !self->enemy->client)
-		self->enemy = NULL;
+		if (strcmp(self->enemy->classname, "doppleganger") != 0) //ScarFace- exception for dopplegangers
+			self->enemy = NULL;
 
 // AJ - detect end of safety mode
 	if (self->client->safety_mode && self->client->safety_time < level.time)
 	{
 		self->takedamage = DAMAGE_YES;
 		self->client->safety_mode = false;
-		self->s.effects &= 0xF7FFFFFF; // clear the yellow shell
+//		self->s.effects &= 0xF7FFFFFF; // clear the yellow shell
+//		self->s.effects &= ~EF_COLOR_SHELL;
+//		self->s.renderfx &= ~RF_SHELL_GREEN;
+		self->s.effects &= EF_HALF_DAMAGE; //ScarFace- clear green shell
 	}
 // end AJ
 
@@ -681,7 +717,13 @@ dist = 0;
 		self->enemy = NULL;
 
 	// teamplay, prevent attacking someone on our team
-	if (self->enemy && self->enemy->client && SameTeam(self, self->enemy))
+/*	if (!strcmp(self->enemy->classname, "doppleganger")) //ScarFace
+	{
+		if (SameTeam(self, self->enemy->teammaster))
+			self->enemy = NULL;
+	}
+*/
+	/*else*/ if (self->enemy && self->enemy->client && SameTeam(self, self->enemy))
 		self->enemy = NULL;
 
 	// this stuff checks our current movetarget, to see if we should still be going for it
@@ -720,7 +762,7 @@ dist = 0;
 	}
 
 	// check for dead enemy
-	if (self->enemy && (self->enemy->health <= 0) && (self->groundentity) && self->enemy->client)
+	if (self->enemy && (self->enemy->health <= 0) && (self->groundentity) && (self->enemy->client))
 	{	// enemy is dead, taunt if no enemies around
 
 		self->goalentity = NULL;
@@ -1245,7 +1287,8 @@ botDebugPrint("MoveToGoal: random jump\n");
 
 		if (self->client->resp.ctf_team == CTF_TEAM1)
 			flag = flag1_ent;
-		else flag = flag2_ent;
+		else if (self->client->resp.ctf_team == CTF_TEAM2)
+			flag = flag2_ent;
 		if (ttctf->value && self->client->resp.ctf_team == CTF_TEAM3)
 			flag = flag3_ent;
 

@@ -74,6 +74,7 @@
 #include "g_local.h"
 #include "bot_procs.h"
 #include "m_player.h"
+#include "aj_weaponbalancing.h"
 
 void TossClientWeapon (edict_t *self);
 qboolean IsFemale (edict_t *ent);
@@ -164,11 +165,20 @@ void bot_die (edict_t *self, edict_t *inflictor, edict_t *attacker, int damage, 
 */
 
 // check for gib
-	if (self->health <= -40)
+	if (self->health <= player_gib_health->value)
 	{
 		gi.sound (self, CHAN_BODY, gi.soundindex ("misc/udeath.wav"), 1, ATTN_NORM, 0);
 		for (n= 0; n < 4; n++)
 			ThrowGib (self, "models/objects/gibs/sm_meat/tris.md2", damage, GIB_ORGANIC);
+		if (mega_gibs->value == 1)
+		{
+			ThrowGib (self, "models/objects/gibs/arm/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/arm/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/leg/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/leg/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/bone/tris.md2", damage, GIB_ORGANIC);
+			ThrowGib (self, "models/objects/gibs/bone2/tris.md2", damage, GIB_ORGANIC);
+		}
 		ThrowClientHead (self, damage);
 
 //ZOID

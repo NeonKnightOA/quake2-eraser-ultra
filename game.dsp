@@ -66,8 +66,8 @@ LINK32=link.exe
 # PROP BASE Target_Dir ""
 # PROP Use_MFC 1
 # PROP Use_Debug_Libraries 1
-# PROP Output_Dir "d:\quake2\ultra\"
-# PROP Intermediate_Dir ".\Debug"
+# PROP Output_Dir "d:\quake2\ultra\src"
+# PROP Intermediate_Dir ".\Release"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /MTd /W3 /Gm /GX /Zi /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "BUILDING_REF_GL" /D "_WINDLL" /D "ERASER" /YX /FD /c
@@ -148,6 +148,10 @@ SOURCE=.\e_hook.c
 
 SOURCE=.\funhook.c
 # End Source File
+# Begin Source File
+
+SOURCE=.\sf_ammosort.c
+# End Source File
 # End Group
 # Begin Group "Eraser"
 
@@ -202,6 +206,10 @@ SOURCE=.\g_zip.c
 # PROP Default_Filter ""
 # Begin Source File
 
+SOURCE=.\dm_tag.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\g_ai.c
 # End Source File
 # Begin Source File
@@ -242,6 +250,10 @@ SOURCE=.\g_monster.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\g_newdm.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\g_newfnc.c
 # End Source File
 # Begin Source File
@@ -267,6 +279,10 @@ SOURCE=.\g_save.c
 # Begin Source File
 
 SOURCE=.\g_spawn.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\g_sphere.c
 # End Source File
 # Begin Source File
 
